@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(class_date)) return json({ error: "Invalid date." }, 400);
 
     const { data: student } = await db.from("students")
-      .select("id, first_name, parent_id, student_email, tutor_id, rate_cents, trial_status, active")
+      .select("id, first_name, grade, parent_id, student_email, tutor_id, rate_cents, trial_status, active")
       .eq("id", student_id).single();
     if (!student || student.tutor_id !== tutor.id) return json({ error: "This student isn't assigned to you." }, 403);
     if (!student.active || student.trial_status === "ended") return json({ error: "This student is no longer active." }, 400);
@@ -89,7 +89,20 @@ Deno.serve(async (req) => {
         <p style="color:#5A5F6E;font-size:13px">If we don't hear from you within 24 hours, the class is confirmed automatically.</p>
         <p style="color:#5A5F6E;font-size:13px">Avelon Academy · ${SITE.replace("https://", "")}</p>
       </div>`;
-    if (to.length) await sendEmail(to, `Confirm ${student.first_name}'s class on ${class_date}`, html);
+    // Grades 1-5: parents get the class notes. Grade 6+: notes go only to the student (if we have their email);
+    // the parent still gets the date and length so they can confirm what they're paying for.
+    const gradeNum = parseInt(String((student as any).grade ?? "").replace(/\D/g, ""), 10);
+    const teen = gradeNum >= 6 && !!student.student_email;
+    const subject = `Confirm ${student.first_name}'s class on ${class_date}`;
+    if (teen) {
+      const parentHtml = html
+        .replace(/<p><b>What we covered:<\/b>[\s\S]*?<\/p>/, "")
+        .replace(/<p><b>Homework:<\/b>[\s\S]*?<\/p>/, "");
+      if (parent?.email) await sendEmail([parent.email], subject, parentHtml);
+      await sendEmail([student.student_email as string], subject, html);
+    } else if (to.length) {
+      await sendEmail(to, subject, html);
+    }
 
     return json({ ok: true, id: session.id });
   } catch (e) {

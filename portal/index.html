@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0B0D12;--paper:#F8F4EC;--card:#FFFCF5;--muted:#5A5F6E;--line:#E2D9C7;--blue:#2563EB;--blue-dark:#1D4ED8;--gold:#B8923A;--ok:#15803D;--warn:#B45309;--bad:#B91C1C}
+:root{--ink:#0B0D12;--paper:#F7F7F5;--card:#FFFFFF;--muted:#5A5F6E;--line:#E2E2DD;--blue:#2563EB;--blue-dark:#1D4ED8;--gold:#B8923A;--ok:#15803D;--warn:#B45309;--bad:#B91C1C}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;line-height:1.5}
 a{color:var(--blue-dark)}
@@ -49,7 +49,7 @@ button:disabled{opacity:.5;cursor:default}
 </head>
 <body>
 <header><div class="bar">
-<a class="logo" href="../index.html"><svg aria-hidden="true" width="28" height="27" viewBox="4 6 92 88"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="#E0B354" stroke-width="6" d="M24.1 89.6 L91.8 40.4 M8.2 40.4 L75.9 89.6"/><path stroke="#B8923A" stroke-width="9" d="M24.1 89.6 L50 10 L75.9 89.6 M8.2 40.4 H91.8"/></g></svg>Avelon Academy</a>
+<a class="logo" href="../index.html"><svg aria-hidden="true" width="28" height="27" viewBox="4 6 92 88"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="#B8923A" stroke-width="4.5" d="M24.1 89.6 L91.8 40.4 M8.2 40.4 L75.9 89.6"/><path stroke="#111111" stroke-width="9" d="M24.1 89.6 L50 10 L75.9 89.6 M8.2 40.4 H91.8"/></g></svg>Avelon Academy</a>
 <div class="actions"><span id="who" class="note"></span><button id="signout" class="small hidden" type="button">Sign out</button></div>
 </div></header>
 <main id="app"><p class="note">Loading…</p></main>
@@ -153,7 +153,8 @@ async function parentView(me) {
     if (c.status === "void") amt = "—";
     const act = c.status === "pending"
       ? `<div class="actions"><button class="small primary" data-ok="${c.id}" type="button">Confirm</button><button class="small" data-flag="${c.id}" type="button">Something's wrong</button></div>` : "";
-    const details = [c.notes && `<b>Covered:</b> ${esc(c.notes)}`, c.homework && `<b>Homework:</b> ${esc(c.homework)}`].filter(Boolean).join("<br>");
+    const teen = parseInt(String(k.grade || "").replace(/\D/g, ""), 10) >= 6 && !!k.student_email;
+    const details = teen ? "" : [c.notes && `<b>Covered:</b> ${esc(c.notes)}`, c.homework && `<b>Homework:</b> ${esc(c.homework)}`].filter(Boolean).join("<br>");
     return `<tr><td>${esc(c.class_date)}</td><td>${esc(k.first_name || "")}</td><td>${c.minutes} min</td><td>${amt}</td><td>${pill(c.status)}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
   }).join("");
 
@@ -169,6 +170,14 @@ async function parentView(me) {
         <form id="me" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}"></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
         <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
     </div>
+    <div class="panel"><h2>Prices</h2><div class="scroll"><table class="table"><thead><tr><th>Program</th><th>Price (CAD)</th></tr></thead><tbody>
+      <tr><td>Grades 1–2 · one-on-one</td><td>$15 per 30-min class</td></tr>
+      <tr><td>Grades 3–6 · one-on-one</td><td>$25 per hour</td></tr>
+      <tr><td>Grades 7–9 · one-on-one</td><td>$30 per hour</td></tr>
+      <tr><td>Grades 10–12 · one-on-one</td><td>$35 per hour</td></tr>
+      <tr><td>Small group (3–5 students)</td><td>$15 per hour, per student</td></tr>
+      <tr><td>Bangla group class</td><td>$15 per class</td></tr></tbody></table></div>
+      <p class="note">3 trial classes to start. You only pay for classes taken, charged every Monday. 10% off for each additional sibling.</p></div>
     <div class="panel"><h2>Your children</h2><div class="grid">${kidsHtml}</div>
       <details style="margin-top:16px"><summary style="cursor:pointer;font-weight:600">Add a child</summary>
       <form id="addkid" class="form" style="margin-top:12px">
