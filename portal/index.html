@@ -328,8 +328,8 @@ function loginView() {
     <p class="sub">Enter your email and we'll send you a sign-in link. No password needed.</p>
     ${flash}
     <form id="login" class="form">
-      <label><span>Your name <span class="note">(first time only)</span></span><input name="name" autocomplete="name"></label>
       <label>Email<input name="email" type="email" required autocomplete="email"></label>
+      <label><span>Your name <span class="note">(only if you're new here)</span></span><input name="name" autocomplete="name"></label>
       <button class="primary" type="submit">Send me a sign-in link</button>
     </form>
   </div>`;
