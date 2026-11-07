@@ -236,3 +236,10 @@ revoke execute on function public.tutor_students(), public.review_session(uuid,t
 grant execute on function public.tutor_students(), public.review_session(uuid,text,text),
   public.parent_trial_decision(uuid,text), public.admin_update_student(uuid,uuid,integer,text,boolean),
   public.admin_set_session(uuid,text), public.admin_set_role(uuid,text) to authenticated;
+
+-- ---------- Backend access ---------------------------------------------
+-- The edge functions use the service_role key. Grant it explicitly so the
+-- backend works even when "Automatically expose new tables" is turned off.
+grant usage on schema public to service_role;
+grant all on public.profiles, public.students, public.sessions, public.charges to service_role;
+grant execute on all functions in schema public to service_role;
