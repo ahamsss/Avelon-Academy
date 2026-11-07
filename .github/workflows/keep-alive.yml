@@ -1,0 +1,32 @@
+# Pings the Supabase database once a day so the free plan never pauses the project
+# (Supabase pauses free projects after 7 days with no activity).
+# Check runs under the repo's "Actions" tab. "Run workflow" there pings it by hand.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "17 14 * * *"   # every day at 14:17 UTC (about 8am Edmonton)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping database
+        env:
+          SUPABASE_URL: https://roqrfckvwsnghifetrld.supabase.co
+          # Publishable key: the same public key the website uses. Not a secret.
+          SUPABASE_KEY: sb_publishable_6gPI6D0fiGBwlG-D3yF3qQ_8uZxlW9x
+        run: |
+          for i in 1 2 3; do
+            if curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/keep_alive" \
+                 -H "apikey: $SUPABASE_KEY" -H "Content-Type: application/json" -d '{}'; then
+              echo; echo "Supabase is awake."; exit 0
+            fi
+            sleep 20
+          done
+          echo "Ping failed 3 times"; exit 1
