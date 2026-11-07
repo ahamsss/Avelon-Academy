@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.weekend-report]
 verify_jwt = false
+
+[functions.add-person]
+verify_jwt = false
