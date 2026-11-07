@@ -458,7 +458,7 @@ async function adminView(me) {
     sb.from("students").select("*").order("created_at", { ascending: false }),
     sb.from("sessions").select("id, student_id, tutor_id, class_date, minutes, amount_cents, status, flag_reason, trial_number, charge_id").order("class_date", { ascending: false }).limit(200),
     sb.from("charges").select("*").order("created_at", { ascending: false }).limit(50),
-    sb.from("trial_requests").select("id, created_at, parent_name, email, grade, subject, format, status").order("created_at", { ascending: false }).limit(50),
+    sb.from("trial_requests").select("id, created_at, parent_name, email, grade, subject, status").order("created_at", { ascending: false }).limit(50),
     loadSF(),
     sb.rpc("usage_report"),
   ]);
@@ -472,7 +472,7 @@ async function adminView(me) {
   const roleSel = (p) => `<select data-role="${p.id}" style="width:auto">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select>`;
 
   // Trial requests
-  const reqRows = (reqs || []).map((r) => `<tr><td>${new Date(r.created_at).toLocaleDateString("en-CA")}</td><td><b>${esc(r.parent_name)}</b><div class="note"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></div></td><td>${esc(r.grade)}<div class="note">${esc(r.subject)} · ${esc(r.format || "One-on-one")}</div></td>
+  const reqRows = (reqs || []).map((r) => `<tr><td>${new Date(r.created_at).toLocaleDateString("en-CA")}</td><td><b>${esc(r.parent_name)}</b><div class="note"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></div></td><td>${esc(r.grade)}<div class="note">${esc(r.subject)}</div></td>
     <td><select data-req="${r.id}" style="width:auto">${["new", "contacted", "booked", "closed"].map((x) => `<option ${x === r.status ? "selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("");
   const newReqs = (reqs || []).filter((r) => r.status === "new").length;
 
@@ -513,7 +513,7 @@ async function adminView(me) {
   app.innerHTML = `
     ${flash}
     <nav class="jump">${[["requests", "Trial requests"], ["week", "This week"], ["attention", "Needs attention"], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["billing", "Billing"], ["storage", "Storage"]].map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
-    <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Child</th><th>Status</th></tr></thead><tbody>${reqRows || `<tr><td colspan="4" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th></tr></thead><tbody>${reqRows || `<tr><td colspan="4" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="students"><h2>Students (${(kids || []).length})</h2><p class="note">Set the tutor and hourly price for each student. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>

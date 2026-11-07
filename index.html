@@ -111,9 +111,6 @@ header.scrolled{border-color:var(--line)}
 .card .more{margin-top:auto;font-weight:600;display:flex;align-items:center;gap:8px}
 .art-1,.art-2,.art-3,.art-4{background:radial-gradient(120% 100% at 50% 50%,#121A2E 0%,#0A0E18 100%)}
 .art svg{position:absolute;inset:0;width:100%;height:100%}
-.rail-ctrl{display:flex;gap:10px}
-.rail-ctrl button{width:48px;height:48px;border-radius:50%;border:1.5px solid var(--ink);background:transparent;font-size:18px;cursor:pointer}
-.rail-ctrl button:hover{background:var(--ink);color:#fff}
 
 /* subjects */
 .subjects{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));border-top:1px solid var(--line)}
@@ -246,8 +243,6 @@ footer{background:#0E1528;color:#F3EFE6;--muted:#A3ACBF;position:relative;overfl
 .fcols h4{color:#A3ACBF}.fcols a:hover{color:#93C5FD}
 .legal{color:#A3ACBF;border-color:#22304A}
 footer .logo{color:#F3EFE6}
-.rail-ctrl button{background:transparent;color:#0E1528;border-color:#0E1528;transition:background .25s,color .25s}
-.rail-ctrl button:hover{background:#0E1528;color:#fff}
 .subj .ico{display:inline-flex;width:46px;height:46px;border-radius:12px;background:#E9EEF8;color:#1D4ED8;align-items:center;justify-content:center;margin-bottom:6px}
 .teach .btn-line:hover{background:#111A38;color:#fff;border-color:#111A38}
 
@@ -274,6 +269,21 @@ form.book button[disabled]{opacity:.6;cursor:default}
 .booked h3{font-family:"Inter Tight",Inter,sans-serif;font-size:32px;letter-spacing:-.02em;margin:0 0 10px;color:#fff}
 .booked h3 span{color:#E0B354}
 .booked p{color:#C3CBDD!important;font-size:17px;line-height:1.6;margin:0 auto 6px!important;max-width:460px}
+
+/* Programs: three cards, swipe on phones, fan out on desktop */
+.rail{grid-auto-columns:minmax(280px,84%);overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+@media (min-width:900px){
+  .rail{grid-auto-flow:row;grid-template-columns:repeat(3,1fr);overflow:visible;scroll-snap-type:none;padding-bottom:0}
+  .rail .card{transition:transform 1.3s cubic-bezier(.2,.75,.15,1),opacity .8s ease,box-shadow 1.3s ease;will-change:transform}
+  .rail.stacked .card{box-shadow:0 18px 40px rgba(11,13,18,.16)}
+  .rail.stacked .card:nth-child(1){transform:translateX(calc(100% + 22px)) rotate(-7deg) scale(.94);opacity:.9}
+  .rail.stacked .card:nth-child(2){transform:translateY(-10px) scale(.97);position:relative;z-index:2}
+  .rail.stacked .card:nth-child(3){transform:translateX(calc(-100% - 22px)) rotate(7deg) scale(.94);opacity:.9}
+  .rail.stacked.open .card{transform:none;opacity:1;box-shadow:none}
+  .rail.stacked.open .card:nth-child(1){transition-delay:.05s}
+  .rail.stacked.open .card:nth-child(3){transition-delay:.15s}
+  .rail.open .card:hover .art .layer{transform:scale(1.06)}
+}
 </style>
 </head>
 <body>
@@ -338,18 +348,17 @@ Avelon Academy
 <div class="wrap">
 <div class="head">
 <div class="reveal"><span class="label">Programs</span><h2 class="display">Support that fits your child.</h2></div>
-<div class="rail-ctrl reveal d1"><button type="button" aria-label="Previous programs" data-dir="-1">←</button><button type="button" aria-label="Next programs" data-dir="1">→</button></div>
 </div>
 <div class="rail" id="rail">
-<a class="card reveal" href="#book">
+<a class="card" href="#book">
 <div class="art art-1"><div class="layer"><svg viewBox="0 0 400 300" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><circle cx="200" cy="150" r="60" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="110" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><circle cx="200" cy="150" r="160" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="210" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><path d="M0 150H400M200 0V300" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="61" cy="247" r="0.7" fill="#fff" opacity="0.28"/><circle cx="198" cy="136" r="1.1" fill="#fff" opacity="0.31"/><circle cx="90" cy="147" r="0.9" fill="#fff" opacity="0.33"/><circle cx="300" cy="11" r="0.9" fill="#fff" opacity="0.28"/><circle cx="315" cy="176" r="0.7" fill="#fff" opacity="0.47"/><circle cx="22" cy="17" r="1.1" fill="#fff" opacity="0.20"/><circle cx="345" cy="202" r="0.9" fill="#fff" opacity="0.42"/><circle cx="210" cy="224" r="0.9" fill="#fff" opacity="0.37"/><circle cx="141" cy="200" r="0.9" fill="#fff" opacity="0.49"/><circle cx="362" cy="127" r="1.1" fill="#fff" opacity="0.48"/><circle cx="48" cy="186" r="1.1" fill="#fff" opacity="0.46"/><circle cx="56" cy="103" r="1.1" fill="#fff" opacity="0.49"/><circle cx="200" cy="281" r="1.1" fill="#fff" opacity="0.45"/><circle cx="265" cy="95" r="1.1" fill="#fff" opacity="0.49"/><circle cx="200" cy="273" r="0.9" fill="#fff" opacity="0.38"/><circle cx="23" cy="78" r="0.9" fill="#fff" opacity="0.32"/><circle cx="76" cy="164" r="1.1" fill="#fff" opacity="0.43"/><circle cx="291" cy="34" r="1.1" fill="#fff" opacity="0.35"/><circle cx="306" cy="156" r="0.9" fill="#fff" opacity="0.31"/><circle cx="288" cy="141" r="0.9" fill="#fff" opacity="0.41"/><circle cx="384" cy="176" r="0.9" fill="#fff" opacity="0.39"/><circle cx="74" cy="74" r="0.7" fill="#fff" opacity="0.43"/><polyline points="150,165 255,128" fill="none" stroke="rgba(147,197,253,.55)" stroke-width="1.1" stroke-linejoin="round"/><circle cx="150" cy="165" r="9" fill="none" stroke="#F3F5FA" stroke-opacity=".35" stroke-width="1"/><path transform="translate(150 165) scale(0.55)" fill="#F3F5FA" d="M0 -10 Q0 0 10 0 Q0 0 0 10 Q0 0 -10 0 Q0 0 0 -10Z"><animate attributeName="opacity" values="1;.55;1" dur="4s" repeatCount="indefinite"/></path><circle cx="255" cy="128" r="9" fill="none" stroke="#E0B354" stroke-opacity=".35" stroke-width="1"/><path transform="translate(255 128) scale(0.55)" fill="#E0B354" d="M0 -10 Q0 0 10 0 Q0 0 0 10 Q0 0 -10 0 Q0 0 0 -10Z"><animate attributeName="opacity" values="1;.55;1" dur="5s" repeatCount="indefinite"/></path><text x="120" y="192" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">TUTOR</text><text x="238" y="108" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">STUDENT</text></svg></div></div>
 <div class="body"><h3>One-on-one tutoring</h3><p>A dedicated tutor and a fixed weekly time, focused on exactly what your child needs.</p><span class="more">Book a trial <span class="arr" aria-hidden="true">→</span></span></div>
 </a>
-<a class="card reveal d1" href="#book">
+<a class="card" href="#book">
 <div class="art art-2"><div class="layer"><svg viewBox="0 0 400 300" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><circle cx="200" cy="150" r="60" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="110" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><circle cx="200" cy="150" r="160" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="210" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><path d="M0 150H400M200 0V300" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="373" cy="275" r="0.7" fill="#fff" opacity="0.23"/><circle cx="147" cy="57" r="1.1" fill="#fff" opacity="0.46"/><circle cx="106" cy="69" r="0.7" fill="#fff" opacity="0.37"/><circle cx="70" cy="131" r="0.9" fill="#fff" opacity="0.44"/><circle cx="337" cy="153" r="0.9" fill="#fff" opacity="0.36"/><circle cx="179" cy="85" r="0.7" fill="#fff" opacity="0.46"/><circle cx="148" cy="271" r="0.9" fill="#fff" opacity="0.33"/><circle cx="346" cy="56" r="0.7" fill="#fff" opacity="0.27"/><circle cx="19" cy="101" r="0.7" fill="#fff" opacity="0.35"/><circle cx="147" cy="154" r="1.1" fill="#fff" opacity="0.25"/><circle cx="350" cy="233" r="1.1" fill="#fff" opacity="0.36"/><circle cx="355" cy="112" r="1.1" fill="#fff" opacity="0.31"/><circle cx="383" cy="279" r="0.7" fill="#fff" opacity="0.49"/><circle cx="162" cy="217" r="1.1" fill="#fff" opacity="0.36"/><circle cx="196" cy="269" r="1.1" fill="#fff" opacity="0.35"/><circle cx="313" cy="195" r="0.9" fill="#fff" opacity="0.47"/><circle cx="185" cy="169" r="1.1" fill="#fff" opacity="0.42"/><circle cx="195" cy="72" r="0.9" fill="#fff" opacity="0.44"/><circle cx="327" cy="255" r="1.1" fill="#fff" opacity="0.28"/><circle cx="356" cy="97" r="1.1" fill="#fff" opacity="0.45"/><circle cx="224" cy="152" r="1.1" fill="#fff" opacity="0.38"/><circle cx="129" cy="68" r="1.1" fill="#fff" opacity="0.31"/><polyline points="200,150 128,108" fill="none" stroke="rgba(147,197,253,.55)" stroke-width="1.1"/><polyline points="200,150 278,112" fill="none" stroke="rgba(147,197,253,.55)" stroke-width="1.1"/><polyline points="200,150 214,236" fill="none" stroke="rgba(147,197,253,.4)" stroke-width="1.1" stroke-dasharray="3 4"/><polyline points="128,108 278,112 214,236 128,108" fill="none" stroke="rgba(147,197,253,.16)" stroke-width="1"/><circle cx="128" cy="108" r="6.5" fill="none" stroke="#F3F5FA" stroke-opacity="0.35" stroke-width="1"/><circle cx="128" cy="108" r="2.6" fill="#F3F5FA" opacity="1"><animate attributeName="opacity" values="1;0.55;1" dur="3.0s" repeatCount="indefinite"/></circle><circle cx="278" cy="112" r="6.5" fill="none" stroke="#F3F5FA" stroke-opacity="0.35" stroke-width="1"/><circle cx="278" cy="112" r="2.6" fill="#F3F5FA" opacity="1"><animate attributeName="opacity" values="1;0.55;1" dur="3.6s" repeatCount="indefinite"/></circle><circle cx="214" cy="236" r="6.5" fill="none" stroke="#F3F5FA" stroke-opacity="0.19" stroke-width="1"/><circle cx="214" cy="236" r="2.6" fill="#F3F5FA" opacity="0.55"><animate attributeName="opacity" values="0.55;0.30;0.55" dur="4.2s" repeatCount="indefinite"/></circle><circle cx="200" cy="150" r="9" fill="none" stroke="#E0B354" stroke-opacity=".35" stroke-width="1"/><path transform="translate(200 150) scale(0.55)" fill="#E0B354" d="M0 -10 Q0 0 10 0 Q0 0 0 10 Q0 0 -10 0 Q0 0 0 -10Z"><animate attributeName="opacity" values="1;.55;1" dur="4s" repeatCount="indefinite"/></path><text x="170" y="180" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">TUTOR</text><text x="88" y="92" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">STUDENT</text><text x="250" y="96" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">STUDENT</text><text x="226" y="262" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.4)">+1 OPTIONAL</text></svg></div></div>
 <div class="body"><h3>Small-group classes</h3><p>2–3 students in the same grade and subject, when we can match them. Personal attention at a lower price.</p><span class="more">Book a trial <span class="arr" aria-hidden="true">→</span></span></div>
 </a>
-<a class="card reveal d2" href="#book">
+<a class="card" href="#book">
 <div class="art art-4"><div class="layer"><svg viewBox="0 0 400 300" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><circle cx="200" cy="150" r="60" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="110" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><circle cx="200" cy="150" r="160" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="200" cy="150" r="210" fill="none" stroke="rgba(147,197,253,.10)" stroke-width="1" stroke-dasharray="2 6"/><path d="M0 150H400M200 0V300" stroke="rgba(147,197,253,.10)" stroke-width="1"/><circle cx="100" cy="39" r="0.9" fill="#fff" opacity="0.34"/><circle cx="44" cy="16" r="1.1" fill="#fff" opacity="0.48"/><circle cx="314" cy="224" r="0.7" fill="#fff" opacity="0.36"/><circle cx="147" cy="228" r="0.7" fill="#fff" opacity="0.28"/><circle cx="368" cy="17" r="1.1" fill="#fff" opacity="0.44"/><circle cx="314" cy="64" r="0.9" fill="#fff" opacity="0.29"/><circle cx="340" cy="279" r="0.9" fill="#fff" opacity="0.23"/><circle cx="240" cy="198" r="1.1" fill="#fff" opacity="0.27"/><circle cx="104" cy="88" r="1.1" fill="#fff" opacity="0.45"/><circle cx="13" cy="92" r="1.1" fill="#fff" opacity="0.46"/><circle cx="332" cy="152" r="0.9" fill="#fff" opacity="0.33"/><circle cx="120" cy="136" r="0.7" fill="#fff" opacity="0.29"/><circle cx="319" cy="22" r="0.7" fill="#fff" opacity="0.34"/><circle cx="389" cy="155" r="1.1" fill="#fff" opacity="0.34"/><circle cx="140" cy="289" r="0.7" fill="#fff" opacity="0.22"/><circle cx="357" cy="188" r="0.9" fill="#fff" opacity="0.28"/><circle cx="145" cy="219" r="0.9" fill="#fff" opacity="0.39"/><circle cx="86" cy="101" r="0.7" fill="#fff" opacity="0.41"/><circle cx="115" cy="173" r="0.7" fill="#fff" opacity="0.24"/><circle cx="365" cy="91" r="0.7" fill="#fff" opacity="0.21"/><circle cx="275" cy="261" r="0.9" fill="#fff" opacity="0.42"/><circle cx="375" cy="15" r="0.9" fill="#fff" opacity="0.30"/><text x="200" y="198" text-anchor="middle" font-family="Noto Sans Bengali, sans-serif" font-size="140" font-weight="400" fill="none" stroke="rgba(147,197,253,.55)" stroke-width="1.3">অ</text><circle cx="146" cy="96" r="6.5" fill="none" stroke="#F3F5FA" stroke-opacity=".35" stroke-width="1"/><circle cx="146" cy="96" r="2.6" fill="#F3F5FA"><animate attributeName="opacity" values="1;.55;1" dur="3s" repeatCount="indefinite"/></circle><circle cx="258" cy="110" r="9" fill="none" stroke="#E0B354" stroke-opacity=".35" stroke-width="1"/><path transform="translate(258 110) scale(0.55)" fill="#E0B354" d="M0 -10 Q0 0 10 0 Q0 0 0 10 Q0 0 -10 0 Q0 0 0 -10Z"><animate attributeName="opacity" values="1;.55;1" dur="4s" repeatCount="indefinite"/></path><circle cx="232" cy="226" r="6.5" fill="none" stroke="#F3F5FA" stroke-opacity=".35" stroke-width="1"/><circle cx="232" cy="226" r="2.6" fill="#F3F5FA"><animate attributeName="opacity" values="1;.55;1" dur="3.5s" repeatCount="indefinite"/></circle><text x="176" y="272" font-family="Inter, sans-serif" font-size="9" letter-spacing="1.5" fill="rgba(200,212,235,.55)">BANGLA</text></svg></div></div>
 <div class="body"><h3>Bangla language classes</h3><p>Reading, writing and speaking for Canadian-born kids, taught by native speakers in small weekly groups.</p><span class="more">Book a trial <span class="arr" aria-hidden="true">→</span></span></div>
 </a>
@@ -456,11 +465,10 @@ Avelon Academy
 <p class="reveal d1">Tell us about your child and we'll set up a 15-minute call. We reply within one day.</p>
 <form class="book reveal d2" id="book-form" action="mailto:contact@avelonacademy.ca?subject=Trial%20class%20request" method="post" enctype="text/plain" novalidate>
 <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"><label>Company<input type="text" name="company" tabindex="-1" autocomplete="off"></label></div>
-<label>Parent name<input type="text" name="parent" required autocomplete="name"></label>
+<label>Parent/student name<input type="text" name="parent" required autocomplete="name"></label>
 <label>Email<input type="email" name="email" required autocomplete="email"></label>
 <label>Grade<select name="grade" required><option value="" disabled selected>Choose grade</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option></select></label>
 <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option><option>Not sure yet</option></select></label>
-<label class="wide">Class type<select name="format"><option>One-on-one</option><option>Small group (2–3 students)</option></select></label>
 <p class="full" style="margin:0;font-size:13px;color:#a9b3c7;text-align:center;font-weight:400">By sending this request you agree to our <a href="terms.html" style="color:#fff">Terms</a> and <a href="privacy.html" style="color:#fff">Privacy Policy</a>.</p>
 <p class="full" id="book-err" role="alert" style="display:none;margin:0;font-size:15px;color:#FCA5A5;text-align:center;font-weight:500"></p>
 <button class="btn btn-blue full" type="submit">Request my trial classes <span class="arr" aria-hidden="true">→</span></button>
@@ -496,11 +504,20 @@ Avelon Academy
   }, {threshold:.15});
   document.querySelectorAll('.reveal, #note-wrap').forEach(function(el){ io.observe(el); });
 
-  // program rail arrows
+  // programs: the three cards start bundled in the middle and fan out when the section scrolls into view (desktop)
   var rail = document.getElementById('rail');
-  document.querySelectorAll('.rail-ctrl button').forEach(function(b){
-    b.addEventListener('click', function(){ rail.scrollBy({left: Number(b.dataset.dir) * (rail.clientWidth * .8), behavior:'smooth'}); });
-  });
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (rail && !calm && window.matchMedia('(min-width: 900px)').matches && 'IntersectionObserver' in window) {
+    rail.classList.add('stacked');
+    // Opens each time the cards come into view; quietly re-bundles once they're fully off screen.
+    var ro = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (e.intersectionRatio >= .6) rail.classList.add('open');
+        else if (e.intersectionRatio === 0) rail.classList.remove('open');
+      });
+    }, {threshold: [0, .6], rootMargin: '0px 0px -8% 0px'});
+    ro.observe(rail);
+  }
 
   // hero: animated star field with constellations and drifting formulas
   var c = document.getElementById('sky'), ctx = c.getContext('2d');
@@ -563,7 +580,7 @@ Avelon Academy
   function fail(m){ err.innerHTML = m; err.style.display = 'block'; }
   f.addEventListener('submit', function(e){
     e.preventDefault(); err.style.display = 'none';
-    var d = { parent: f.parent.value.trim(), email: f.email.value.trim(), grade: f.grade.value, subject: f.subject.value, format: f.format.value,
+    var d = { parent: f.parent.value.trim(), email: f.email.value.trim(), grade: f.grade.value, subject: f.subject.value,
               company: f.company.value, elapsed: Date.now() - t0 };
     if (!d.parent) return fail('Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return fail('Please enter a valid email address.');
@@ -575,8 +592,9 @@ Avelon Academy
       .then(function(){
         var first = d.parent.split(' ')[0].replace(/[<>&"]/g, '');
         var box = document.createElement('div'); box.className = 'booked'; box.setAttribute('role', 'status'); box.tabIndex = -1;
-        box.innerHTML = '<div class="tick" aria-hidden="true">\u2713</div><h3>Thank you, ' + first + '<span>.</span></h3>' +
-          '<p>Your request is in. We\u2019ve sent a welcome email to <b style="color:#fff">' + d.email.replace(/[<>&"]/g, '') + '</b> with what happens next.</p>' +
+        box.innerHTML = '<div class="tick" aria-hidden="true">\u2713</div><h3>Thank you for signing up, ' + first + '<span>.</span></h3>' +
+          '<p>We\u2019ve sent a welcome email to <b style="color:#fff">' + d.email.replace(/[<>&"]/g, '') + '</b> with what happens next.</p>' +
+          '<p>Don\u2019t see it in a few minutes? Please check your <b style="color:#fff">junk or spam folder</b>, and mark it as \u201cnot spam\u201d so our class emails reach you.</p>' +
           '<p>We\u2019ll be in touch within one day to set up a free 15-minute call.</p>';
         f.replaceWith(box); box.focus();
       })
