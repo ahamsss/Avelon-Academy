@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Avelon Academy portal: database
--- Paste this whole file into Supabase > SQL Editor > New query > Run.
--- Safe to run once on a new project.
+-- Applied by `npx supabase db push` (see backend/README.md),
+-- or paste into Supabase > SQL Editor > New query > Run. Run once on a new project.
 -- =====================================================================
 
 create extension if not exists pgcrypto;

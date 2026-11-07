@@ -1,0 +1,19 @@
+# Supabase CLI settings for the Avelon Academy backend.
+project_id = "avelon-academy"
+
+# Every function checks access in its own code (login token, Stripe signature,
+# the secret link token or the cron secret), so the gateway's JWT check is off.
+[functions.create-card-session]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.log-session]
+verify_jwt = false
+
+[functions.approve-session]
+verify_jwt = false
+
+[functions.weekly-billing]
+verify_jwt = false
