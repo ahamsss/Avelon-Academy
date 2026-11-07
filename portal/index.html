@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal — Avelon Academy</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0B0D12;--paper:#F8F4EC;--card:#FFFCF5;--muted:#5A5F6E;--line:#E2D9C7;--blue:#2563EB;--blue-dark:#1D4ED8;--gold:#B8923A;--ok:#15803D;--warn:#B45309;--bad:#B91C1C}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:var(--blue-dark)}
+header{border-bottom:1px solid var(--line);background:var(--paper)}
+.bar{max-width:1080px;margin:0 auto;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-family:"Inter Tight",Inter,sans-serif;font-weight:800;font-size:19px;letter-spacing:-.02em;white-space:nowrap}
+main{max-width:1080px;margin:0 auto;padding:34px 22px 80px}
+h1{font-family:"Inter Tight",Inter,sans-serif;font-weight:800;font-size:clamp(30px,5vw,44px);letter-spacing:-.03em;margin:0 0 6px;line-height:1.1}
+h2{font-family:"Inter Tight",Inter,sans-serif;font-size:21px;letter-spacing:-.02em;margin:0 0 14px}
+.sub{color:var(--muted);margin:0 0 26px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+input,select,textarea{font:inherit;font-weight:400;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);width:100%}
+textarea{min-height:84px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:1px}
+.form{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+button{font:inherit;font-weight:600;cursor:pointer;border-radius:999px;padding:10px 18px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);min-height:44px}
+button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+button.primary:hover{background:var(--blue-dark)}
+button.small{min-height:34px;padding:5px 12px;font-size:14px}
+button:disabled{opacity:.5;cursor:default}
+.table{width:100%;border-collapse:collapse;font-size:15px}
+.table th{text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
+.table td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#EEE7D8}
+.pill.ok{background:#DCFCE7;color:var(--ok)}.pill.warn{background:#FEF3C7;color:var(--warn)}.pill.bad{background:#FEE2E2;color:var(--bad)}.pill.blue{background:#DBEAFE;color:var(--blue-dark)}
+.note{font-size:14px;color:var(--muted)}
+.msg{padding:12px 16px;border-radius:12px;margin-bottom:18px;font-weight:500}
+.msg.ok{background:#DCFCE7;color:var(--ok)}.msg.bad{background:#FEE2E2;color:var(--bad)}.msg.info{background:#DBEAFE;color:var(--blue-dark)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.hidden{display:none}
+.login{max-width:440px;margin:40px auto}
+</style>
+</head>
+<body>
+<header><div class="bar">
+<a class="logo" href="../index.html"><svg aria-hidden="true" width="28" height="27" viewBox="4 6 92 88"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="#E0B354" stroke-width="6" d="M24.1 89.6 L91.8 40.4 M8.2 40.4 L75.9 89.6"/><path stroke="#B8923A" stroke-width="9" d="M24.1 89.6 L50 10 L75.9 89.6 M8.2 40.4 H91.8"/></g></svg>Avelon Academy</a>
+<div class="actions"><span id="who" class="note"></span><button id="signout" class="small hidden" type="button">Sign out</button></div>
+</div></header>
+<main id="app"><p class="note">Loading…</p></main>
+
+<script type="module">
+// ====== SETTINGS: paste your Supabase project values here (setup guide, step 3) ======
+const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+const SUPABASE_KEY = "YOUR-PUBLISHABLE-OR-ANON-KEY";
+// =====================================================================================
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const app = document.getElementById("app");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (c) => "$" + ((c || 0) / 100).toFixed(2);
+const today = () => new Date().toLocaleDateString("en-CA");
+const pill = (s) => {
+  const m = { pending: ["Waiting for confirmation", "warn"], approved: ["Confirmed", "ok"], flagged: ["Flagged", "bad"], void: ["Not charged", ""],
+              succeeded: ["Paid", "ok"], failed: ["Failed", "bad"], processing: ["Processing", "warn"],
+              trial: ["Trial", "blue"], continuing: ["Enrolled", "ok"], ended: ["Stopped", ""] }[s] || [s, ""];
+  return `<span class="pill ${m[1]}">${esc(m[0])}</span>`;
+};
+let flash = "";
+const params = new URLSearchParams(location.search);
+if (params.get("card") === "saved") flash = `<div class="msg ok">Card saved. It can take a few seconds to show here.</div>`;
+if (params.get("card") === "cancelled") flash = `<div class="msg info">No card was saved.</div>`;
+let justSaved = params.get("card") === "saved";
+if (params.has("card")) history.replaceState(null, "", location.pathname);
+
+async function call(fn, body) {
+  const { data, error } = await sb.functions.invoke(fn, { body: body || {} });
+  if (error) {
+    let msg = "Something went wrong.";
+    try { msg = (await error.context.json()).error || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  return data;
+}
+async function rpc(fn, args) { const { error } = await sb.rpc(fn, args); if (error) throw new Error(error.message); }
+function show(msg, kind = "ok") { flash = `<div class="msg ${kind}">${esc(msg)}</div>`; route(); }
+
+// ---------------- Login ----------------
+function loginView() {
+  document.getElementById("signout").classList.add("hidden");
+  document.getElementById("who").textContent = "";
+  app.innerHTML = `
+  <div class="login panel">
+    <h1>Family &amp; tutor portal</h1>
+    <p class="sub">Enter your email and we'll send you a sign-in link. No password needed.</p>
+    ${flash}
+    <form id="login" class="form">
+      <label>Your name <span class="note" style="font-weight:400">(first time only)</span><input name="name" autocomplete="name"></label>
+      <label>Email<input name="email" type="email" required autocomplete="email"></label>
+      <button class="primary" type="submit">Send me a sign-in link</button>
+    </form>
+  </div>`;
+  flash = "";
+  document.getElementById("login").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const btn = e.target.querySelector("button"); btn.disabled = true;
+    const { error } = await sb.auth.signInWithOtp({
+      email: f.get("email"),
+      options: { emailRedirectTo: location.origin + location.pathname, data: { full_name: f.get("name") || "" } },
+    });
+    btn.disabled = false;
+    if (error) { flash = `<div class="msg bad">${esc(error.message)}</div>`; return loginView(); }
+    app.innerHTML = `<div class="login panel"><h1>Check your email</h1><p class="sub">We sent a sign-in link to <b>${esc(f.get("email"))}</b>. Open it on this device.</p></div>`;
+  };
+}
+
+// ---------------- Parent ----------------
+async function parentView(me) {
+  const [{ data: kids }, { data: classes }, { data: pays }] = await Promise.all([
+    sb.from("students").select("*").order("created_at"),
+    sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id").order("class_date", { ascending: false }).limit(100),
+    sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30),
+  ]);
+  const kidName = Object.fromEntries((kids || []).map((k) => [k.id, k]));
+  const doneCount = (id) => (classes || []).filter((c) => c.student_id === id && c.status !== "void").length;
+
+  const card = me.card_last4
+    ? `<p>Card on file: <b>${esc((me.card_brand || "card").toUpperCase())} •••• ${esc(me.card_last4)}</b></p><button id="addcard" type="button">Change card</button>`
+    : `<p class="note">Add a card to keep classes going after the trial. We charge it every Monday for the previous week's confirmed classes.</p><button id="addcard" class="primary" type="button">Add a card</button>`;
+
+  const kidsHtml = (kids || []).map((k) => {
+    const n = doneCount(k.id);
+    const trial = k.trial_status === "trial"
+      ? `<p class="note">Trial: ${Math.min(n, 3)} of 3 classes taken.</p>
+         <div class="actions"><button class="small primary" data-trial="continuing" data-id="${k.id}" type="button">Continue with Avelon</button>
+         <button class="small" data-trial="ended" data-id="${k.id}" type="button">Stop after the trial</button></div>` : "";
+    return `<div class="panel" style="margin:0"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b style="font-size:18px">${esc(k.first_name)}</b>${pill(k.trial_status)}</div>
+      <p class="note">${esc(k.grade || "")}${k.subject ? " · " + esc(k.subject) : ""}<br>${k.tutor_id ? "Tutor matched" : "We'll match a tutor soon"}</p>${trial}</div>`;
+  }).join("") || `<p class="note">No children added yet.</p>`;
+
+  const classRows = (classes || []).map((c) => {
+    const k = kidName[c.student_id] || {};
+    let amt = money(c.amount_cents);
+    if (c.trial_number === 1) amt = "Free (trial)";
+    else if ((c.trial_number === 2 || c.trial_number === 3) && k.trial_status !== "continuing") amt = `${money(c.amount_cents)}<br><span class="note">only if you continue</span>`;
+    if (c.status === "void") amt = "—";
+    const act = c.status === "pending"
+      ? `<div class="actions"><button class="small primary" data-ok="${c.id}" type="button">Confirm</button><button class="small" data-flag="${c.id}" type="button">Something's wrong</button></div>` : "";
+    const details = [c.notes && `<b>Covered:</b> ${esc(c.notes)}`, c.homework && `<b>Homework:</b> ${esc(c.homework)}`].filter(Boolean).join("<br>");
+    return `<tr><td>${esc(c.class_date)}</td><td>${esc(k.first_name || "")}</td><td>${c.minutes} min</td><td>${amt}</td><td>${pill(c.status)}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
+  }).join("");
+
+  const payRows = (pays || []).map((p) => `<tr><td>${new Date(p.created_at).toLocaleDateString("en-CA")}</td><td>${money(p.amount_cents)} CAD</td><td>${pill(p.status)}${p.failure_message ? `<div class="note">${esc(p.failure_message)}</div>` : ""}</td></tr>`).join("");
+
+  app.innerHTML = `
+    <h1>Hi ${esc((me.full_name || "there").split(" ")[0])}</h1>
+    <p class="sub">Confirm classes, see notes and homework, and manage payments.</p>
+    ${flash}
+    <div class="grid">
+      <div class="panel"><h2>Payment card</h2>${card}</div>
+      <div class="panel"><h2>Your details</h2>
+        <form id="me" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}"></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
+        <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
+    </div>
+    <div class="panel"><h2>Your children</h2><div class="grid">${kidsHtml}</div>
+      <details style="margin-top:16px"><summary style="cursor:pointer;font-weight:600">Add a child</summary>
+      <form id="addkid" class="form" style="margin-top:12px">
+        <div class="row"><label>First name<input name="first_name" required></label>
+        <label>Grade<select name="grade">${["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"].map((g) => `<option>${g}</option>`).join("")}</select></label>
+        <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option><option>Physics</option><option>Chemistry</option><option>Biology</option></select></label></div>
+        <label>Child's email <span class="note" style="font-weight:400">(optional, so they can confirm classes too)</span><input name="student_email" type="email"></label>
+        <button class="primary" type="submit">Add child</button></form></details></div>
+    <div class="panel"><h2>Classes</h2><p class="note">Classes not confirmed or flagged within 24 hours are confirmed automatically.</p>
+      <div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Child</th><th>Length</th><th>Amount</th><th>Status</th></tr></thead><tbody>${classRows || `<tr><td colspan="5" class="note">No classes yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel"><h2>Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>`;
+  flash = "";
+
+  document.getElementById("addcard").onclick = async (e) => {
+    e.target.disabled = true;
+    try { const { url } = await call("create-card-session"); location.href = url; }
+    catch (err) { show(err.message, "bad"); }
+  };
+  document.getElementById("me").onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const { error } = await sb.from("profiles").update({ full_name: f.get("full_name"), phone: f.get("phone") }).eq("id", me.id);
+    show(error ? error.message : "Saved.", error ? "bad" : "ok");
+  };
+  document.getElementById("addkid").onsubmit = async (e) => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    if (!f.student_email) delete f.student_email;
+    const { error } = await sb.from("students").insert({ ...f, parent_id: me.id });
+    show(error ? error.message : `${f.first_name} added. We'll be in touch to match a tutor.`, error ? "bad" : "ok");
+  };
+  app.querySelectorAll("[data-trial]").forEach((b) => b.onclick = async () => {
+    const d = b.dataset.trial;
+    if (d === "ended" && !confirm("Stop after the trial? The trial classes stay free.")) return;
+    try { await rpc("parent_trial_decision", { p_student: b.dataset.id, p_decision: d });
+      show(d === "continuing" ? "Wonderful, you're enrolled!" : "Okay, classes will stop. The trial classes are free."); }
+    catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-ok]").forEach((b) => b.onclick = async () => {
+    try { await rpc("review_session", { p_session: b.dataset.ok, p_action: "approve" }); show("Class confirmed. Thank you!"); }
+    catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-flag]").forEach((b) => b.onclick = async () => {
+    const r = prompt("What went wrong? (for example: class was shorter, didn't happen)");
+    if (!r) return;
+    try { await rpc("review_session", { p_session: b.dataset.flag, p_action: "flag", p_reason: r }); show("Thanks for letting us know. We'll look into it and won't charge this class until it's sorted."); }
+    catch (err) { show(err.message, "bad"); }
+  });
+  if (justSaved && !me.card_last4) { justSaved = false; setTimeout(route, 4000); }
+}
+
+// ---------------- Tutor ----------------
+async function tutorView(me) {
+  const [{ data: kids }, { data: classes }] = await Promise.all([
+    sb.rpc("tutor_students"),
+    sb.from("sessions").select("id, student_id, class_date, minutes, status, flag_reason").eq("tutor_id", me.id).order("class_date", { ascending: false }).limit(60),
+  ]);
+  const name = Object.fromEntries((kids || []).map((k) => [k.id, k.first_name]));
+  const rows = (classes || []).map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(name[c.student_id] || "")}</td><td>${c.minutes} min</td><td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}</td></tr>`).join("");
+  app.innerHTML = `
+    <h1>Hi ${esc((me.full_name || "there").split(" ")[0])}</h1>
+    <p class="sub">Log each class right after it ends. The family gets an email to confirm it.</p>
+    ${flash}
+    <div class="panel"><h2>Log a class</h2>
+      ${(kids || []).length ? `<form id="log" class="form">
+        <div class="row"><label>Student<select name="student_id" required>${kids.map((k) => `<option value="${k.id}">${esc(k.first_name)} · ${esc(k.grade || "")} ${esc(k.subject || "")}</option>`).join("")}</select></label>
+        <label>Date<input name="class_date" type="date" value="${today()}" max="${today()}" required></label>
+        <label>Length<select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>60 min</option><option value="75">75 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label></div>
+        <label>What you covered<textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators. Good progress."></textarea></label>
+        <label>Homework<textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
+        <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
+    </div>
+    <div class="panel"><h2>Your recent classes</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Length</th><th>Status</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="note">No classes yet.</td></tr>`}</tbody></table></div></div>`;
+  flash = "";
+  const form = document.getElementById("log");
+  if (form) form.onsubmit = async (e) => {
+    e.preventDefault(); const btn = form.querySelector("button"); btn.disabled = true;
+    try { await call("log-session", Object.fromEntries(new FormData(form))); show("Class logged. The family has been asked to confirm."); }
+    catch (err) { btn.disabled = false; show(err.message, "bad"); }
+  };
+}
+
+// ---------------- Admin ----------------
+async function adminView(me) {
+  const [{ data: people }, { data: kids }, { data: classes }, { data: pays }] = await Promise.all([
+    sb.from("profiles").select("id, email, full_name, role, card_last4").order("created_at", { ascending: false }),
+    sb.from("students").select("*").order("created_at", { ascending: false }),
+    sb.from("sessions").select("id, student_id, tutor_id, class_date, minutes, amount_cents, status, flag_reason, trial_number, charge_id").order("class_date", { ascending: false }).limit(200),
+    sb.from("charges").select("*").order("created_at", { ascending: false }).limit(50),
+  ]);
+  const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
+  const K = Object.fromEntries((kids || []).map((k) => [k.id, k]));
+  const tutors = (people || []).filter((p) => p.role === "tutor");
+  const open = (classes || []).filter((c) => c.status === "flagged" || c.status === "pending");
+
+  const openRows = open.map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(K[c.student_id]?.first_name || "")}</td><td>${esc(P[c.tutor_id]?.full_name || P[c.tutor_id]?.email || "")}</td><td>${c.minutes} min · ${money(c.amount_cents)}</td>
+    <td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}<div class="actions" style="margin-top:6px"><button class="small" data-set="approved" data-id="${c.id}" type="button">Approve</button><button class="small" data-set="void" data-id="${c.id}" type="button">Don't charge</button></div></td></tr>`).join("");
+
+  const kidRows = (kids || []).map((k) => `<tr data-kid="${k.id}">
+    <td><b>${esc(k.first_name)}</b><div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>${esc(P[k.parent_id]?.email || "")}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}</div></td>
+    <td><select name="tutor"><option value="">— none —</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${esc(t.full_name || t.email)}</option>`).join("")}</select></td>
+    <td><input name="rate" type="number" min="0" step="0.5" style="width:96px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
+    <td><select name="trial">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
+    <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
+    <td><button class="small" data-savekid type="button">Save</button></td></tr>`).join("");
+
+  const peopleRows = (people || []).map((p) => `<tr><td>${esc(p.full_name || "")}<div class="note">${esc(p.email)}</div></td>
+    <td><select data-role="${p.id}">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select></td></tr>`).join("");
+
+  const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${esc(P[c.parent_id]?.email || "")}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
+
+  app.innerHTML = `
+    <h1>Admin</h1>
+    <p class="sub">Match tutors, set prices, settle flagged classes and run billing.</p>
+    ${flash}
+    <div class="panel"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button></div>
+    <div class="panel"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
+    <div class="panel"><h2>Students</h2><p class="note">Set the tutor and hourly price for each student. Tutors can only log classes once both are set.</p><div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel"><h2>People</h2><p class="note">Everyone who signs in starts as a parent. Make your tutors "tutor" here.</p><div class="scroll"><table class="table"><thead><tr><th>Person</th><th>Role</th></tr></thead><tbody>${peopleRows}</tbody></table></div></div>
+    <div class="panel"><h2>Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>`;
+  flash = "";
+
+  document.getElementById("bill").onclick = async (e) => {
+    if (!confirm("Charge every family's card now for all confirmed, unbilled classes?")) return;
+    e.target.disabled = true;
+    try { const r = await call("weekly-billing"); show(`Charged ${r.charged.length}, failed ${r.failed.length}, no card ${r.noCard.length}.`); }
+    catch (err) { show(err.message, "bad"); }
+  };
+  app.querySelectorAll("[data-set]").forEach((b) => b.onclick = async () => {
+    try { await rpc("admin_set_session", { p_session: b.dataset.id, p_status: b.dataset.set }); show("Updated."); }
+    catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-savekid]").forEach((b) => b.onclick = async () => {
+    const tr = b.closest("tr"); const g = (n) => tr.querySelector(`[name=${n}]`);
+    const rate = g("rate").value === "" ? null : Math.round(Number(g("rate").value) * 100);
+    try { await rpc("admin_update_student", { p_student: tr.dataset.kid, p_tutor: g("tutor").value || null, p_rate_cents: rate, p_trial_status: g("trial").value, p_active: g("active").checked }); show("Student saved."); }
+    catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
+    try { await rpc("admin_set_role", { p_user: s.dataset.role, p_role: s.value }); show("Role updated."); }
+    catch (err) { show(err.message, "bad"); }
+  });
+}
+
+// ---------------- Router ----------------
+async function route() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return loginView();
+  const { data: me, error } = await sb.from("profiles").select("*").eq("id", session.user.id).single();
+  if (error || !me) { app.innerHTML = `<div class="msg bad">Couldn't load your account. Try signing out and in again.</div>`; return; }
+  document.getElementById("who").textContent = me.email;
+  const so = document.getElementById("signout"); so.classList.remove("hidden");
+  so.onclick = async () => { await sb.auth.signOut(); loginView(); };
+  try {
+    if (me.role === "admin") await adminView(me);
+    else if (me.role === "tutor") await tutorView(me);
+    else await parentView(me);
+  } catch (err) { app.innerHTML = `<div class="msg bad">${esc(err.message)}</div>`; }
+}
+sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_IN" || event === "SIGNED_OUT") route(); });
+route();
+</script>
+</body>
+</html>
