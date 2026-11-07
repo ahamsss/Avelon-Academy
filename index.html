@@ -592,10 +592,8 @@ Avelon Academy
       .then(function(){
         var first = d.parent.split(' ')[0].replace(/[<>&"]/g, '');
         var box = document.createElement('div'); box.className = 'booked'; box.setAttribute('role', 'status'); box.tabIndex = -1;
-        box.innerHTML = '<div class="tick" aria-hidden="true">\u2713</div><h3>Thank you for signing up, ' + first + '<span>.</span></h3>' +
-          '<p>We\u2019ve sent a welcome email to <b style="color:#fff">' + d.email.replace(/[<>&"]/g, '') + '</b> with what happens next.</p>' +
-          '<p>Don\u2019t see it in a few minutes? Please check your <b style="color:#fff">junk or spam folder</b>, and mark it as \u201cnot spam\u201d so our class emails reach you.</p>' +
-          '<p>We\u2019ll be in touch within one day to set up a free 15-minute call.</p>';
+        box.innerHTML = '<div class="tick" aria-hidden="true">\u2713</div><h3>Thank you, ' + first + '<span>.</span></h3>' +
+          '<p>Your request is in. We\u2019ll get in touch with you soon to set up a free 15-minute call.</p>';
         f.replaceWith(box); box.focus();
       })
       .catch(function(x){
