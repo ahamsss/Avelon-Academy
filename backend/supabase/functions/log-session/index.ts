@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     if (!tutor || tutor.role !== "tutor") return json({ error: "Only tutors can log classes." }, 403);
 
     const { student_id, class_date, minutes, notes, homework } = await req.json();
-    const mins = Number(minutes);
+    let mins = Number(minutes);
     if (!student_id || !class_date || !(mins >= 15 && mins <= 240)) return json({ error: "Please fill in the student, date and length." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(class_date)) return json({ error: "Invalid date." }, 400);
 
@@ -42,6 +42,14 @@ Deno.serve(async (req) => {
       .eq("id", student_id).single();
     if (!student || student.tutor_id !== tutor.id) return json({ error: "This student isn't assigned to you." }, 403);
     if (!student.active || student.trial_status === "ended") return json({ error: "This student is no longer active." }, 400);
+
+    // Classes are charged at the booked length, never the actual time (no overtime charges).
+    // Use the weekly slot on that weekday; if none that day, the student's first slot; if no slots, what the tutor picked.
+    const { data: slots } = await db.from("class_slots").select("weekday, minutes").eq("student_id", student.id).order("created_at");
+    if (slots && slots.length) {
+      const wd = new Date(class_date + "T12:00:00Z").getUTCDay();
+      mins = (slots.find((x) => x.weekday === wd) ?? slots[0]).minutes;
+    }
 
     // How many classes before this one?
     const { count } = await db.from("sessions").select("id", { count: "exact", head: true })
