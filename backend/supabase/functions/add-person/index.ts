@@ -1,4 +1,4 @@
-// Avelon Academy: admin adds a tutor or a family (with their first student) and emails them that My Avelon is ready.
+// Avelon Academy: admin adds a tutor or a family (with their first student) and emails them that their account is ready.
 // Supabase > Edge Functions > name: add-person  (Verify JWT OFF; this code checks the admin login itself)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -29,9 +29,9 @@ async function sendEmail(to: string, subject: string, html: string, text: string
 function inviteEmail(first: string, kind: "tutor" | "family", student?: string) {
   const title = kind === "tutor" ? "Welcome to the team" : "Your account is ready";
   const lines = kind === "tutor"
-    ? ["You're now set up as an Avelon tutor. In My Avelon you'll see the students you're matched with, their weekly class times and Google Meet links, and the place to log each class right after it ends."]
-    : [`${student ? esc(student) + "'s" : "Your"} My Avelon account is ready. It's where you'll see class times and Google Meet links, confirm classes, read notes and homework, and manage payments.`];
-  const how = "Go to My Avelon and enter this email address. We'll send you a sign-in link. There's no password to remember.";
+    ? ["You're now set up as an Avelon tutor. Once you log in, you'll see the students you're matched with, their weekly class times and Google Meet links, and the place to log each class right after it ends."]
+    : [`Your Avelon account${student ? " for " + esc(student) : ""} is ready. Once you log in, you'll see class times and Google Meet links, confirm classes, read notes and homework, and manage payments.`];
+  const how = "To sign in, go to avelonacademy.ca and click <b>Log in</b> at the top right (or use the button below). Enter this email address and we'll send you a sign-in link. There's no password to remember.";
   const p = (t: string) => `<p style="font:16px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">${t}</p>`;
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"></head>
 <body style="margin:0;padding:0;background:#F1F1EE">
@@ -43,7 +43,7 @@ function inviteEmail(first: string, kind: "tutor" | "family", student?: string) 
   </td></tr>
   <tr><td style="background:#FFFFFF;padding:34px 36px 8px">
     ${p(`Hi ${esc(first || "there")},`)}${lines.map(p).join("")}${p(how)}
-    <p style="margin:8px 0 30px"><a href="${SITE}/portal/" style="background:#0E1528;color:#FFFFFF;padding:14px 26px;border-radius:999px;text-decoration:none;font:700 15px Arial,sans-serif;display:inline-block">Open My Avelon</a></p>
+    <p style="margin:8px 0 30px"><a href="${SITE}/portal/" style="background:#0E1528;color:#FFFFFF;padding:14px 26px;border-radius:999px;text-decoration:none;font:700 15px Arial,sans-serif;display:inline-block">Log in</a></p>
     ${p("Questions? Just reply to this email.")}
     <p style="font:16px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 34px">Warmly,<br><b>Sadman</b><br><span style="color:#5A5F6E">Founder, Avelon Academy</span></p>
   </td></tr>
@@ -51,7 +51,7 @@ function inviteEmail(first: string, kind: "tutor" | "family", student?: string) 
     <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF"><a href="${SITE}" style="color:#F3EFE6;text-decoration:none">avelonacademy.ca</a> &nbsp;&middot;&nbsp; <a href="mailto:${ADMIN}" style="color:#F3EFE6;text-decoration:none">${ADMIN}</a></div>
   </td></tr>
 </table></td></tr></table></body></html>`;
-  const text = `Hi ${first || "there"},\n\n${lines.join("\n\n").replace(/&#39;/g, "'").replace(/&amp;/g, "&")}\n\n${how}\n\nOpen My Avelon: ${SITE}/portal/\n\nQuestions? Just reply to this email.\n\nWarmly,\nSadman\nFounder, Avelon Academy`;
+  const text = `Hi ${first || "there"},\n\n${lines.join("\n\n").replace(/&#39;/g, "'").replace(/&amp;/g, "&")}\n\n${how.replace(/<\/?b>/g, "")}\n\nLog in: ${SITE}/portal/\n\nQuestions? Just reply to this email.\n\nWarmly,\nSadman\nFounder, Avelon Academy`;
   return { html, text, subject: kind === "tutor" ? "Welcome to Avelon Academy: your tutor account" : "Your Avelon Academy account is ready" };
 }
 
