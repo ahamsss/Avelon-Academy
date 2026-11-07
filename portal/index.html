@@ -491,7 +491,7 @@ async function tutorView(me) {
   hero("Tutor portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Log each class right after it ends. The family gets an email to confirm it.");
   const waiting = (classes || []).filter((c) => c.status === "pending").length, flagged = (classes || []).filter((c) => c.status === "flagged").length;
   const weekN = sf.slots.filter((x) => byId[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
-  const T_SECTIONS = [["t-overview", "Overview"], ["t-week", "Your week", weekN], ["t-log", "Log a class"], ["t-students", "Your students"], ["t-recent", "Recent classes", flagged]];
+  const T_SECTIONS = [["t-overview", "Overview"], ["t-week", "Your week", weekN], ["t-log", "Log a class"], ["t-students", "Your students"], ["t-recent", "Recent classes", flagged], ["t-details", "Your details"]];
   app.innerHTML = `
     ${flash}
     ${dash(T_SECTIONS, `
@@ -509,10 +509,18 @@ async function tutorView(me) {
         <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
     <div class="panel" id="t-students"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>
+    <div class="panel" id="t-details"><h2>Your details</h2>
+        <form id="tme" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}" required></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
+        <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
     <div class="panel" id="t-recent"><h2>Your recent classes</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Length</th><th>Status</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="note">No classes yet.</td></tr>`}</tbody></table></div></div>`)}`;
   flash = "";
   bindShared(me);
   bindDash("tutor", "t-overview");
+  document.getElementById("tme").onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const { error } = await sb.from("profiles").update({ full_name: f.get("full_name"), phone: f.get("phone") }).eq("id", me.id);
+    show(error ? error.message : "Saved.", error ? "bad" : "ok");
+  };
   const form = document.getElementById("log");
   if (form) form.onsubmit = async (e) => {
     e.preventDefault(); const btn = form.querySelector("button"); btn.disabled = true;
@@ -571,12 +579,12 @@ async function adminView(me) {
   // Parents and tutors
   const parentRows = parents.map((p) => {
     const ch = (kids || []).filter((k) => k.parent_id === p.id);
-    return `<tr><td><b>${esc(p.full_name || "")}</b><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
+    return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="small" type="button" data-rename="${p.id}" data-name="${esc(p.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
       <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td>${roleSel(p)}</td></tr>`;
   }).join("");
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
     const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
-    return `<tr><td><b>${esc(t.full_name || "")}</b><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
+    return `<tr><td><b>${esc(t.full_name || "")}</b> <button class="small" type="button" data-rename="${t.id}" data-name="${esc(t.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
       <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td>${roleSel(t)}</td></tr>`;
   }).join("");
 
@@ -699,6 +707,11 @@ async function adminView(me) {
     catch (err) { btn.disabled = false; show(err.message, "bad"); }
   }; };
   addPerson("addfam", "family"); addPerson("addtutor", "tutor");
+  app.querySelectorAll("[data-rename]").forEach((b) => b.onclick = async () => {
+    const n = prompt("New name:", b.dataset.name || ""); if (n == null || !n.trim()) return;
+    try { await rpc("admin_set_name", { p_user: b.dataset.rename, p_name: n.trim() }); show("Name updated."); }
+    catch (err) { show(err.message, "bad"); }
+  });
   app.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
     if (s.value === "admin" && !confirm("Give this person full admin access, including all families and payments?")) { route(); return; }
     try { await rpc("admin_set_role", { p_user: s.dataset.role, p_role: s.value }); show("Role updated."); }
