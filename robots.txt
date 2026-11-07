@@ -1,0 +1,8 @@
+# Avelon Academy
+User-agent: *
+Allow: /
+Disallow: /portal/
+Disallow: /approve.html
+Disallow: /backend/
+
+Sitemap: https://avelonacademy.ca/sitemap.xml
