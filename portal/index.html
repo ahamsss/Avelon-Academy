@@ -504,8 +504,9 @@ async function tutorView(me) {
         <label>Date<input name="class_date" type="date" value="${today()}" max="${today()}" required></label>
         <label>Length<select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>60 min</option><option value="75">75 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label></div>
         <p class="note" style="margin:-4px 0 0">Classes are charged at the booked length from the student's weekly time, even if you run over. Length only matters for students with no weekly time set.</p>
-        <label>What you covered <span class="note" style="font-weight:400">(goes into the student's weekend report)</span><textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators. Good progress."></textarea></label>
+        <label>What you covered <span class="note" style="font-weight:400">(goes into the student's weekend report)</span><textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators"></textarea></label>
         <label>Homework <span class="note" style="font-weight:400">(listed under "To practise next")</span><textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
+        <label>Plan for next week <span class="note" style="font-weight:400">(optional, listed under "Next week")</span><textarea name="next_plan" placeholder="e.g. Subtracting fractions, then a short quiz"></textarea></label>
         <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
     <div class="panel" id="t-students"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>

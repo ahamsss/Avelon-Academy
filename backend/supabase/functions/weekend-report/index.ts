@@ -44,7 +44,7 @@ async function allowed(req: Request) {
   return p?.role === "admin";
 }
 
-type Cls = { class_date: string; minutes: number; notes: string | null; homework: string | null; tutor_id: string };
+type Cls = { class_date: string; minutes: number; notes: string | null; homework: string | null; next_plan: string | null; tutor_id: string };
 
 function reportEmail(first: string, grade: string, subject: string, weekLabel: string, classes: Cls[], tutorName: string) {
   const totalMin = classes.reduce((a, c) => a + c.minutes, 0);
@@ -55,6 +55,10 @@ function reportEmail(first: string, grade: string, subject: string, weekLabel: s
         <span style="font-weight:400;color:#5A5F6E">&nbsp;&middot;&nbsp;${c.minutes} min</span></div>
       ${c.notes ? `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12;margin-top:6px">${nl(c.notes)}</div>` : ""}
     </td></tr>`).join("");
+  const plan = [...classes].reverse().map((c) => (c.next_plan || "").trim()).find(Boolean) || "";
+  const box = (label: string, inner: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:6px 0 16px"><tr><td style="padding:18px 22px">
+        <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:10px">${label}</div>${inner}</td></tr></table>`;
+  const nextWeek = plan ? box("Next week", `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12">${nl(plan)}</div>`) : "";
   const practise = hw.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:6px 0 26px"><tr><td style="padding:18px 22px">
         <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:10px">To practise next</div>
@@ -77,11 +81,12 @@ function reportEmail(first: string, grade: string, subject: string, weekLabel: s
     <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:4px">What we covered</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px">${rows}</table>
     ${practise}
+    ${nextWeek}
     <p style="font:15px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">Questions, or something you'd like ${tutorName ? esc(tutorName) : "your tutor"} to focus on next week? Just reply to this email.</p>
     <p style="font:15px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 30px">Have a great weekend,<br><b>Avelon Academy</b></p>
   </td></tr>
   <tr><td style="background:#0E1528;border-radius:0 0 20px 20px;padding:22px 36px">
-    <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF">Class times, Meet links and files are in your portal: <a href="${SITE}/portal/" style="color:#F3EFE6">${SITE.replace("https://", "")}/portal</a></div>
+    <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF">Class times, Meet links and files: <a href="${SITE}/portal/" style="color:#F3EFE6">log in at ${SITE.replace("https://", "")}</a></div>
   </td></tr>
 </table></td></tr></table></body></html>`;
 
@@ -90,7 +95,7 @@ ${[grade, subject].filter(Boolean).join(" · ")} · ${classes.length} class(es),
 
 WHAT WE COVERED
 ${classes.map((c) => `${pretty(c.class_date, { weekday: "long", month: "short", day: "numeric" })} · ${c.minutes} min\n${c.notes || ""}`).join("\n\n")}
-${hw.length ? `\nTO PRACTISE NEXT\n${hw.map((h) => "- " + h).join("\n")}\n` : ""}
+${hw.length ? `\nTO PRACTISE NEXT\n${hw.map((h) => "- " + h).join("\n")}\n` : ""}${plan ? `\nNEXT WEEK\n${plan}\n` : ""}
 Questions? Just reply to this email.
 
 Avelon Academy
@@ -110,7 +115,7 @@ Deno.serve(async (req) => {
   const weekLabel = `${pretty(from, { month: "short", day: "numeric" })}–${pretty(to, { month: "short", day: "numeric" })}`;
 
   const { data: sessions, error } = await db.from("sessions")
-    .select("student_id, tutor_id, class_date, minutes, notes, homework, status")
+    .select("student_id, tutor_id, class_date, minutes, notes, homework, next_plan, status")
     .gte("class_date", from).lte("class_date", to).neq("status", "void").order("class_date");
   if (error) return json({ error: error.message }, 500);
 

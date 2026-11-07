@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     const { data: tutor } = await db.from("profiles").select("id, role, full_name").eq("id", user.id).single();
     if (!tutor || tutor.role !== "tutor") return json({ error: "Only tutors can log classes." }, 403);
 
-    const { student_id, class_date, minutes, notes, homework } = await req.json();
+    const { student_id, class_date, minutes, notes, homework, next_plan } = await req.json();
     let mins = Number(minutes);
     if (!student_id || !class_date || !(mins >= 15 && mins <= 240)) return json({ error: "Please fill in the student, date and length." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(class_date)) return json({ error: "Invalid date." }, 400);
@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
       student_id: student.id, tutor_id: tutor.id, class_date, minutes: mins,
       notes: notes ? String(notes).slice(0, 2000) : null,
       homework: homework ? String(homework).slice(0, 1000) : null,
+      next_plan: next_plan ? String(next_plan).slice(0, 1000) : null,
       trial_number, amount_cents,
     }).select("id, approve_token").single();
     if (error) throw error;
