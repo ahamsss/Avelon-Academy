@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.weekly-billing]
 verify_jwt = false
+
+[functions.book-trial]
+verify_jwt = false
+
+[functions.cleanup-files]
+verify_jwt = false

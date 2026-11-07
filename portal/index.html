@@ -75,6 +75,16 @@ details summary{cursor:pointer;font-weight:600;color:var(--navy)}
 footer{background:var(--navy);color:#A3ACBF;font-size:14px}
 footer .in{max-width:1180px;margin:0 auto;padding:28px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
 footer a{color:#F3EFE6;text-decoration:none}footer a:hover{color:#93C5FD}
+
+.btnlink{display:inline-flex;align-items:center;min-height:36px;padding:5px 16px;border-radius:999px;background:var(--navy);color:#fff;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}
+.btnlink:hover{background:var(--navy-2)}.btnlink.go{background:#15803D}
+label.check{flex-direction:row;align-items:flex-start;gap:10px;font-weight:500;margin:6px 0 4px}label.check input{width:auto;margin-top:3px}
+.block{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}.block h3{font-size:15px;margin:0 0 6px;font-family:"Inter Tight",Inter,sans-serif}
+ul.plain{list-style:none;margin:6px 0 0;padding:0}ul.plain li{padding:8px 0;border-bottom:1px solid var(--line)}ul.plain li:last-child{border-bottom:none}
+label.upload{margin-top:10px}label.upload input{padding:10px;background:var(--soft);border-style:dashed}
+details.kidbox{border:1px solid var(--line);border-radius:16px;padding:14px 18px;margin:10px 0;background:#fff}details.kidbox[open]{background:var(--paper)}details.kidbox summary{cursor:pointer}
+nav.jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}nav.jump a{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}nav.jump a:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{scroll-margin-top:90px}
 </style>
 </head>
 <body>
@@ -124,6 +134,136 @@ async function rpc(fn, args) { const { error } = await sb.rpc(fn, args); if (err
 function hero(kicker, title, lede) { document.getElementById("kicker").innerHTML = kicker; document.getElementById("title").innerHTML = title; document.getElementById("lede").textContent = lede || ""; }
 function show(msg, kind = "ok") { flash = `<div class="msg ${kind}">${esc(msg)}</div>`; route(); }
 
+// ---------------- Schedule + files (shared by every view) ----------------
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ZONES = [["America/Vancouver", "Pacific (Vancouver)"], ["America/Edmonton", "Mountain (Edmonton)"], ["America/Regina", "Saskatchewan (Regina)"], ["America/Winnipeg", "Central (Winnipeg)"], ["America/Toronto", "Eastern (Toronto)"], ["America/Halifax", "Atlantic (Halifax)"], ["America/St_Johns", "Newfoundland (St. John's)"], ["Asia/Dhaka", "Bangladesh (Dhaka)"]];
+const MY_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const DEF_ZONE = ZONES.some(([z]) => z === MY_ZONE) ? MY_ZONE : "America/Edmonton";
+const zoneName = (z) => (ZONES.find(([k]) => k === z) || [z, z])[1].replace(/ \(.*\)/, "");
+const WD = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+function zparts(ms, tz) {
+  const o = {};
+  for (const p of new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(ms))) o[p.type] = p.value;
+  return o;
+}
+function zoneOffset(ms, tz) { const p = zparts(ms, tz); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - (ms - (ms % 1000)); }
+function zonedToUtc(y, m, d, hh, mm, tz) { const guess = Date.UTC(y, m - 1, d, hh, mm); const t = guess - zoneOffset(guess, tz); return guess - zoneOffset(t, tz); }
+// Start times (ms) of a weekly slot that are still running or start within the next `days` days.
+function occurrences(slot, from, days) {
+  const out = new Set(); const [hh, mm] = slot.start_time.split(":").map(Number);
+  for (let i = -1; i <= days; i++) {
+    const p = zparts(from + i * 864e5, slot.timezone);
+    if (WD[p.weekday] !== slot.weekday) continue;
+    const t = zonedToUtc(+p.year, +p.month, +p.day, hh, mm, slot.timezone);
+    if (t + slot.minutes * 60000 > from && t < from + days * 864e5) out.add(t);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+const fmtWhen = (t) => new Date(t).toLocaleString("en-CA", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const MY_TZ_SHORT = (new Intl.DateTimeFormat("en-CA", { timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName") || {}).value || "";
+function gcalLink(slot, who) {
+  const t = occurrences(slot, Date.now(), 8)[0]; if (!t) return "#";
+  const f = (q) => `${q.year}${q.month}${q.day}T${String(+q.hour % 24).padStart(2, "0")}${q.minute}00`;
+  const u = new URL("https://calendar.google.com/calendar/render");
+  u.searchParams.set("action", "TEMPLATE");
+  u.searchParams.set("text", `Avelon class: ${who}`);
+  u.searchParams.set("dates", `${f(zparts(t, slot.timezone))}/${f(zparts(t + slot.minutes * 60000, slot.timezone))}`);
+  u.searchParams.set("ctz", slot.timezone);
+  u.searchParams.set("recur", "RRULE:FREQ=WEEKLY");
+  if (slot.meet_link) { u.searchParams.set("location", slot.meet_link); u.searchParams.set("details", `Join on Google Meet: ${slot.meet_link}`); }
+  return u.toString();
+}
+async function loadSF() {
+  const [{ data: slots }, { data: files }] = await Promise.all([
+    sb.from("class_slots").select("*").order("weekday"),
+    sb.from("class_files").select("*").order("created_at", { ascending: false }),
+  ]);
+  return { slots: slots || [], files: files || [] };
+}
+function upcomingHtml(slots, kidsById, opts) {
+  const now = Date.now(), items = [];
+  for (const s of slots) if (kidsById[s.student_id]) for (const t of occurrences(s, now, opts.days)) items.push({ t, s });
+  items.sort((a, b) => a.t - b.t);
+  if (!items.length) return `<p class="note">${opts.empty}</p>`;
+  return `<div class="scroll"><table class="table"><thead><tr><th>When <span style="text-transform:none;letter-spacing:0">(your time, ${esc(MY_TZ_SHORT)})</span></th><th>Student</th><th>Length</th><th></th></tr></thead><tbody>${items.map(({ t, s }) => {
+    const k = kidsById[s.student_id], live = now >= t - 15 * 60000 && now < t + s.minutes * 60000;
+    const extra = opts.extra ? opts.extra(k) : "";
+    return `<tr><td><b>${esc(fmtWhen(t))}</b>${live ? ' <span class="pill ok">Starting now</span>' : ""}</td><td>${esc(k.first_name)}<div class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}${extra ? "<br>" + extra : ""}</div></td><td>${s.minutes} min</td>
+      <td>${s.meet_link ? `<a class="btnlink${live ? " go" : ""}" href="${esc(s.meet_link)}" target="_blank" rel="noopener">Join Google Meet</a>` : `<span class="note">Meet link coming</span>`}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+function slotsHtml(k, slots, canEdit) {
+  const mine = slots.filter((s) => s.student_id === k.id);
+  const rows = mine.map((s) => `<li><b>${DAYS[s.weekday]}s, ${esc(s.start_time.slice(0, 5))}</b> <span class="note">${esc(zoneName(s.timezone))} time · ${s.minutes} min</span><br>
+    ${s.meet_link ? `<a href="${esc(s.meet_link)}" target="_blank" rel="noopener">Google Meet link</a>` : `<span class="note">No Meet link yet</span>`} · <a href="${esc(gcalLink(s, k.first_name))}" target="_blank" rel="noopener">Add to Google Calendar</a>
+    ${canEdit ? `<div class="actions" style="margin-top:6px"><button class="small" data-editlink="${s.id}" data-link="${esc(s.meet_link || "")}" type="button">${s.meet_link ? "Change" : "Add"} Meet link</button><button class="small" data-delslot="${s.id}" type="button">Remove</button></div>` : ""}</li>`).join("");
+  const form = canEdit ? `<details style="margin-top:10px"><summary>Add a weekly class time</summary><form class="form slotform" data-student="${k.id}" style="margin-top:12px"><div class="row">
+      <label>Day<select name="weekday">${DAYS.map((d, i) => `<option value="${i}">${d}</option>`).join("")}</select></label>
+      <label>Start time<input name="start_time" type="time" required value="17:00"></label>
+      <label>Length<select name="minutes">${[30, 45, 60, 75, 90, 120].map((m) => `<option value="${m}" ${m === 60 ? "selected" : ""}>${m} min</option>`).join("")}</select></label>
+      <label>Time zone<select name="timezone">${ZONES.map(([z, n]) => `<option value="${z}" ${z === DEF_ZONE ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
+      <label>Google Meet link <span class="note">(optional now, you can add it later)</span><input name="meet_link" type="url" placeholder="https://meet.google.com/abc-defg-hij"></label>
+      <button class="small primary" type="submit">Add weekly class</button></form></details>` : "";
+  return `<div class="block"><h3>Weekly schedule</h3>${rows ? `<ul class="plain">${rows}</ul>` : `<p class="note">No class time set yet.</p>`}${form}</div>`;
+}
+const FILE_NOTE = `<div class="msg info" style="margin:8px 0 12px;font-size:14px">Files are deleted automatically 3 months after upload. Download anything you want to keep.</div>`;
+function filesHtml(k, files, me) {
+  const mine = files.filter((f) => f.student_id === k.id);
+  const rows = mine.map((f) => {
+    const left = Math.max(0, 90 - Math.floor((Date.now() - Date.parse(f.created_at)) / 864e5));
+    return `<li><a href="#" data-dl="${esc(f.path)}" data-name="${esc(f.file_name)}">${esc(f.file_name)}</a>
+      <span class="note">${(f.size_bytes / 1048576).toFixed(1)} MB · ${new Date(f.created_at).toLocaleDateString("en-CA")} · <span${left <= 14 ? ' style="color:var(--warn);font-weight:600"' : ""}>deleted in ${left} day${left === 1 ? "" : "s"}</span></span>
+      ${f.uploaded_by === me.id || me.role === "admin" ? ` <button class="small" data-delfile="${f.id}" data-path="${esc(f.path)}" type="button">Delete</button>` : ""}</li>`;
+  }).join("");
+  return `<div class="block"><h3>Files</h3>${FILE_NOTE}${rows ? `<ul class="plain">${rows}</ul>` : `<p class="note">No files yet.</p>`}
+    <label class="upload">Upload a file <span class="note">(PDF, Word, PowerPoint, images; max 10 MB)</span><input type="file" data-up="${k.id}" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.heic,.zip"></label></div>`;
+}
+function bindShared(me) {
+  app.querySelectorAll(".slotform").forEach((f) => f.onsubmit = async (e) => {
+    e.preventDefault(); const d = Object.fromEntries(new FormData(f));
+    const { error } = await sb.from("class_slots").insert({ student_id: f.dataset.student, weekday: +d.weekday, start_time: d.start_time, minutes: +d.minutes, timezone: d.timezone, meet_link: d.meet_link.trim() || null });
+    show(error ? (error.message.includes("meet_link") ? "The Meet link must start with https://" : error.message) : "Weekly class added.", error ? "bad" : "ok");
+  });
+  app.querySelectorAll("[data-delslot]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this weekly class time?")) return;
+    const { error } = await sb.from("class_slots").delete().eq("id", b.dataset.delslot);
+    show(error ? error.message : "Class time removed.", error ? "bad" : "ok");
+  });
+  app.querySelectorAll("[data-editlink]").forEach((b) => b.onclick = async () => {
+    const v = prompt("Paste the Google Meet link (starts with https://)", b.dataset.link); if (v === null) return;
+    const { error } = await sb.from("class_slots").update({ meet_link: v.trim() || null }).eq("id", b.dataset.editlink);
+    show(error ? "The Meet link must start with https://" : "Meet link saved.", error ? "bad" : "ok");
+  });
+  app.querySelectorAll("[data-up]").forEach((inp) => inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    if (!file.size) return show("That file is empty.", "bad");
+    if (file.size > 10 * 1048576) return show("That file is over 10 MB. Try a smaller file, or share a Google Drive link instead.", "bad");
+    const safe = file.name.replace(/[^\w.\- ]+/g, "_").slice(-120);
+    const path = `${inp.dataset.up}/${crypto.randomUUID()}-${safe}`;
+    inp.disabled = true;
+    const { error: upErr } = await sb.storage.from("class-files").upload(path, file, { contentType: file.type || "application/octet-stream" });
+    if (upErr) { inp.disabled = false; return show(upErr.message, "bad"); }
+    const { error } = await sb.from("class_files").insert({ student_id: inp.dataset.up, file_name: file.name.slice(0, 200), path, size_bytes: file.size });
+    show(error ? error.message : `${file.name} uploaded.`, error ? "bad" : "ok");
+  });
+  app.querySelectorAll("[data-dl]").forEach((a) => a.onclick = async (e) => {
+    e.preventDefault();
+    const { data, error } = await sb.storage.from("class-files").createSignedUrl(a.dataset.dl, 120, { download: a.dataset.name });
+    if (error) return show(error.message, "bad");
+    location.href = data.signedUrl;
+  });
+  app.querySelectorAll("[data-delfile]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Delete this file for everyone?")) return;
+    await sb.storage.from("class-files").remove([b.dataset.path]);
+    const { error } = await sb.from("class_files").delete().eq("id", b.dataset.delfile);
+    show(error ? error.message : "File deleted.", error ? "bad" : "ok");
+  });
+  app.querySelectorAll("[data-group]").forEach((c) => c.onchange = async () => {
+    const { error } = await sb.from("students").update({ open_to_group: c.checked }).eq("id", c.dataset.group);
+    show(error ? error.message : c.checked ? "Noted: open to a small group. We'll let you know if we find a match." : "Okay, one-on-one only.", error ? "bad" : "ok");
+  });
+}
+
 // ---------------- Login ----------------
 function loginView() {
   document.getElementById("signout").classList.add("hidden");
@@ -157,11 +297,13 @@ function loginView() {
 
 // ---------------- Parent ----------------
 async function parentView(me) {
-  const [{ data: kids }, { data: classes }, { data: pays }] = await Promise.all([
+  const [{ data: allKids }, { data: classes }, { data: pays }, sf] = await Promise.all([
     sb.from("students").select("*").order("created_at"),
     sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id").order("class_date", { ascending: false }).limit(100),
     sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30),
+    loadSF(),
   ]);
+  const kids = (allKids || []).filter((k) => k.parent_id === me.id);
   const kidName = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const doneCount = (id) => (classes || []).filter((c) => c.student_id === id && c.status !== "void").length;
 
@@ -176,7 +318,9 @@ async function parentView(me) {
          <div class="actions"><button class="small primary" data-trial="continuing" data-id="${k.id}" type="button">Continue with Avelon</button>
          <button class="small" data-trial="ended" data-id="${k.id}" type="button">Stop after the trial</button></div>` : "";
     return `<div class="panel kid" style="margin:0"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b style="font-size:18px">${esc(k.first_name)}</b>${pill(k.trial_status)}</div>
-      <p class="note">${esc(k.grade || "")}${k.subject ? " · " + esc(k.subject) : ""}<br>${k.tutor_id ? "Tutor matched" : "We'll match a tutor soon"}</p>${trial}</div>`;
+      <p class="note">${esc(k.grade || "")}${k.subject ? " · " + esc(k.subject) : ""}<br>${k.tutor_id ? "Tutor matched" : "We'll match a tutor soon"}</p>${trial}
+      <label class="check"><input type="checkbox" data-group="${k.id}" ${k.open_to_group ? "checked" : ""}> Open to a small group (2–3 students, $20/hour) if we can match one</label>
+      ${slotsHtml(k, sf.slots, false)}${filesHtml(k, sf.files, me)}</div>`;
   }).join("") || `<p class="note">No children added yet.</p>`;
 
   const classRows = (classes || []).map((c) => {
@@ -197,20 +341,18 @@ async function parentView(me) {
   hero("Family portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Confirm classes, see notes and homework, and manage payments.");
   app.innerHTML = `
     ${flash}
+    <div class="panel"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, kidName, { days: 14, empty: "No classes scheduled yet. Once your tutor is matched, class times and Google Meet links appear here." })}</div>
     <div class="grid">
       <div class="panel"><h2>Payment card</h2>${card}</div>
       <div class="panel"><h2>Your details</h2>
         <form id="me" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}"></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
         <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
     </div>
-    <div class="panel"><h2>Prices</h2><div class="scroll"><table class="table"><thead><tr><th>Program</th><th>Price (CAD)</th></tr></thead><tbody>
-      <tr><td>Grades 1–2 · one-on-one</td><td>$15 per 30-min class</td></tr>
-      <tr><td>Grades 3–6 · one-on-one</td><td>$25 per hour</td></tr>
-      <tr><td>Grades 7–9 · one-on-one</td><td>$30 per hour</td></tr>
-      <tr><td>Grades 10–12 · one-on-one</td><td>$35 per hour</td></tr>
-      <tr><td>Small group (3–5 students)</td><td>$15 per hour, per student</td></tr>
-      <tr><td>Bangla group class</td><td>$15 per class</td></tr></tbody></table></div>
-      <p class="note">3 trial classes to start. You only pay for classes taken, charged every Monday. 10% off for each additional sibling.</p></div>
+    <div class="panel"><h2>Prices</h2><div class="scroll"><table class="table"><thead><tr><th>Class</th><th>Price (CAD)</th></tr></thead><tbody>
+      <tr><td><b>One-on-one</b> <span class="pill blue">Founding families</span><div class="note">Promo rate for our first 10 families</div></td><td>$25 per hour</td></tr>
+      <tr><td><b>Small group</b><div class="note">2–3 students in the same grade and subject, when we can match them</div></td><td>$20 per hour, per student</td></tr>
+      <tr><td><b>Bangla</b></td><td>$20 per hour</td></tr></tbody></table></div>
+      <p class="note">3 trial classes to start. You only pay for classes taken, charged every Monday.</p></div>
     <div class="panel"><h2>Your children</h2><div class="grid">${kidsHtml}</div>
       <details style="margin-top:16px"><summary style="cursor:pointer;font-weight:600">Add a child</summary>
       <form id="addkid" class="form" style="margin-top:12px">
@@ -257,20 +399,36 @@ async function parentView(me) {
     try { await rpc("review_session", { p_session: b.dataset.flag, p_action: "flag", p_reason: r }); show("Thanks for letting us know. We'll look into it and won't charge this class until it's sorted."); }
     catch (err) { show(err.message, "bad"); }
   });
+  bindShared(me);
   if (justSaved && !me.card_last4) { justSaved = false; setTimeout(route, 4000); }
+}
+
+// ---------------- Student (a teen whose email is on file) ----------------
+async function studentView(me, kids) {
+  const sf = await loadSF();
+  const byId = Object.fromEntries(kids.map((k) => [k.id, k]));
+  hero("Student portal", `Hi ${esc(kids[0].first_name)}<span class="star">.</span>`, "Your class times, Google Meet links and files.");
+  app.innerHTML = `${flash}
+    <div class="panel"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, byId, { days: 14, empty: "No classes scheduled yet." })}</div>
+    ${kids.map((k) => `<div class="panel"><h2>${esc(k.subject || "Your classes")} <span class="note" style="font-size:16px;font-weight:500">${esc(k.grade || "")}</span></h2>${slotsHtml(k, sf.slots, false)}${filesHtml(k, sf.files, me)}</div>`).join("")}`;
+  flash = "";
+  bindShared(me);
 }
 
 // ---------------- Tutor ----------------
 async function tutorView(me) {
-  const [{ data: kids }, { data: classes }] = await Promise.all([
+  const [{ data: kids }, { data: classes }, sf] = await Promise.all([
     sb.rpc("tutor_students"),
     sb.from("sessions").select("id, student_id, class_date, minutes, status, flag_reason").eq("tutor_id", me.id).order("class_date", { ascending: false }).limit(60),
+    loadSF(),
   ]);
+  const byId = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const name = Object.fromEntries((kids || []).map((k) => [k.id, k.first_name]));
   const rows = (classes || []).map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(name[c.student_id] || "")}</td><td>${c.minutes} min</td><td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}</td></tr>`).join("");
   hero("Tutor portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Log each class right after it ends. The family gets an email to confirm it.");
   app.innerHTML = `
     ${flash}
+    <div class="panel"><h2>Your week</h2>${upcomingHtml(sf.slots, byId, { days: 7, empty: "No classes scheduled this week. Add each student's weekly time below." })}</div>
     <div class="panel"><h2>Log a class</h2>
       ${(kids || []).length ? `<form id="log" class="form">
         <div class="row"><label>Student<select name="student_id" required>${kids.map((k) => `<option value="${k.id}">${esc(k.first_name)} · ${esc(k.grade || "")} ${esc(k.subject || "")}</option>`).join("")}</select></label>
@@ -280,8 +438,10 @@ async function tutorView(me) {
         <label>Homework<textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
         <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
+    <div class="panel"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>
     <div class="panel"><h2>Your recent classes</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Length</th><th>Status</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="note">No classes yet.</td></tr>`}</tbody></table></div></div>`;
   flash = "";
+  bindShared(me);
   const form = document.getElementById("log");
   if (form) form.onsubmit = async (e) => {
     e.preventDefault(); const btn = form.querySelector("button"); btn.disabled = true;
@@ -292,41 +452,79 @@ async function tutorView(me) {
 
 // ---------------- Admin ----------------
 async function adminView(me) {
-  const [{ data: people }, { data: kids }, { data: classes }, { data: pays }] = await Promise.all([
-    sb.from("profiles").select("id, email, full_name, role, card_last4").order("created_at", { ascending: false }),
+  const [{ data: people }, { data: kids }, { data: classes }, { data: pays }, { data: reqs }, sf, { data: usage }] = await Promise.all([
+    sb.from("profiles").select("id, email, full_name, phone, role, card_last4, created_at").order("created_at", { ascending: false }),
     sb.from("students").select("*").order("created_at", { ascending: false }),
     sb.from("sessions").select("id, student_id, tutor_id, class_date, minutes, amount_cents, status, flag_reason, trial_number, charge_id").order("class_date", { ascending: false }).limit(200),
     sb.from("charges").select("*").order("created_at", { ascending: false }).limit(50),
+    sb.from("trial_requests").select("id, created_at, parent_name, email, grade, subject, format, status").order("created_at", { ascending: false }).limit(50),
+    loadSF(),
+    sb.rpc("usage_report"),
   ]);
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
   const K = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const tutors = (people || []).filter((p) => p.role === "tutor");
+  const parents = (people || []).filter((p) => p.role === "parent");
+  const admins = (people || []).filter((p) => p.role === "admin");
   const open = (classes || []).filter((c) => c.status === "flagged" || c.status === "pending");
+  const who = (p) => esc(p?.full_name || p?.email || "");
+  const roleSel = (p) => `<select data-role="${p.id}" style="width:auto">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select>`;
 
-  const openRows = open.map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(K[c.student_id]?.first_name || "")}</td><td>${esc(P[c.tutor_id]?.full_name || P[c.tutor_id]?.email || "")}</td><td>${c.minutes} min · ${money(c.amount_cents)}</td>
+  // Trial requests
+  const reqRows = (reqs || []).map((r) => `<tr><td>${new Date(r.created_at).toLocaleDateString("en-CA")}</td><td><b>${esc(r.parent_name)}</b><div class="note"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></div></td><td>${esc(r.grade)}<div class="note">${esc(r.subject)} · ${esc(r.format || "One-on-one")}</div></td>
+    <td><select data-req="${r.id}" style="width:auto">${["new", "contacted", "booked", "closed"].map((x) => `<option ${x === r.status ? "selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("");
+  const newReqs = (reqs || []).filter((r) => r.status === "new").length;
+
+  // Classes needing attention
+  const openRows = open.map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(K[c.student_id]?.first_name || "")}</td><td>${who(P[c.tutor_id])}</td><td>${c.minutes} min · ${money(c.amount_cents)}</td>
     <td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}<div class="actions" style="margin-top:6px"><button class="small" data-set="approved" data-id="${c.id}" type="button">Approve</button><button class="small" data-set="void" data-id="${c.id}" type="button">Don't charge</button></div></td></tr>`).join("");
 
+  // Students
+  const groups = {};
+  for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
+  const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
   const kidRows = (kids || []).map((k) => `<tr data-kid="${k.id}">
-    <td><b>${esc(k.first_name)}</b><div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>${esc(P[k.parent_id]?.email || "")}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}</div></td>
-    <td><select name="tutor"><option value="">— none —</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${esc(t.full_name || t.email)}</option>`).join("")}</select></td>
+    <td><b>${esc(k.first_name)}</b>${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)}` : ""}</div></td>
+    <td><select name="tutor"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${esc(t.full_name || t.email)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" style="width:96px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
     <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
     <td><button class="small" data-savekid type="button">Save</button></td></tr>`).join("");
 
-  const peopleRows = (people || []).map((p) => `<tr><td>${esc(p.full_name || "")}<div class="note">${esc(p.email)}</div></td>
-    <td><select data-role="${p.id}">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select></td></tr>`).join("");
+  // Parents and tutors
+  const parentRows = parents.map((p) => {
+    const ch = (kids || []).filter((k) => k.parent_id === p.id);
+    return `<tr><td><b>${esc(p.full_name || "")}</b><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
+      <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td>${roleSel(p)}</td></tr>`;
+  }).join("");
+  const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
+    const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
+    return `<tr><td><b>${esc(t.full_name || "")}</b><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
+      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td>${roleSel(t)}</td></tr>`;
+  }).join("");
 
-  const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${esc(P[c.parent_id]?.email || "")}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
+  const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${who(P[c.parent_id])}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
 
-  hero("Admin", 'Avelon <span class="star">HQ.</span>', "Match tutors, set prices, settle flagged classes and run billing.");
+  const bar = (used, total, label) => { const pct = Math.min(100, Math.round((used / total) * 100)); return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${label}</span><span>${(used / 1048576).toFixed(0)} MB of ${total >= 1073741824 ? "1 GB" : (total / 1048576) + " MB"} · <b>${pct}%</b></span></div><div style="height:10px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.max(pct, 1)}%;background:${pct >= 75 ? "var(--warn)" : "var(--navy)"}"></div></div></div>`; };
+  const usageHtml = usage ? bar(usage.db_bytes, 500 * 1048576, "Database") + bar(usage.file_bytes, 1073741824, `Class files (${usage.file_count})`) : `<p class="note">Couldn't load usage.</p>`;
+
+  hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
   app.innerHTML = `
     ${flash}
-    <div class="panel"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button></div>
-    <div class="panel"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
-    <div class="panel"><h2>Students</h2><p class="note">Set the tutor and hourly price for each student. Tutors can only log classes once both are set.</p><div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
-    <div class="panel"><h2>People</h2><p class="note">Everyone who signs in starts as a parent. Make your tutors "tutor" here.</p><div class="scroll"><table class="table"><thead><tr><th>Person</th><th>Role</th></tr></thead><tbody>${peopleRows}</tbody></table></div></div>
-    <div class="panel"><h2>Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>`;
+    <nav class="jump">${[["requests", "Trial requests"], ["week", "This week"], ["attention", "Needs attention"], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["billing", "Billing"], ["storage", "Storage"]].map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
+    <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Child</th><th>Status</th></tr></thead><tbody>${reqRows || `<tr><td colspan="4" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
+    <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="students"><h2>Students (${(kids || []).length})</h2><p class="note">Set the tutor and hourly price for each student. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
+      ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
+      <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="schedules"><h2>Schedules &amp; files</h2><p class="note">Set each student's weekly class time and Google Meet link. The family, the student and the tutor all see it.</p>
+      ${(kids || []).filter((k) => k.active).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))} · tutor: ${who(P[k.tutor_id]) || "none"} · ${sf.slots.filter((s) => s.student_id === k.id).length} weekly class(es)</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students yet.</p>`}</div>
+    <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">To add a tutor: they sign up at avelonacademy.ca/portal, then you change their role to "tutor" in the Parents list below.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th>Role</th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Everyone who signs up starts here as a parent.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th>Role</th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="billing"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button>
+      <h3 style="margin-top:26px">Payments</h3><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>`;
   flash = "";
 
   document.getElementById("bill").onclick = async (e) => {
@@ -345,10 +543,16 @@ async function adminView(me) {
     try { await rpc("admin_update_student", { p_student: tr.dataset.kid, p_tutor: g("tutor").value || null, p_rate_cents: rate, p_trial_status: g("trial").value, p_active: g("active").checked }); show("Student saved."); }
     catch (err) { show(err.message, "bad"); }
   });
+  app.querySelectorAll("[data-req]").forEach((sel) => sel.onchange = async () => {
+    const { error } = await sb.from("trial_requests").update({ status: sel.value }).eq("id", sel.dataset.req);
+    show(error ? error.message : "Request updated.", error ? "bad" : "ok");
+  });
   app.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
+    if (s.value === "admin" && !confirm("Give this person full admin access, including all families and payments?")) { route(); return; }
     try { await rpc("admin_set_role", { p_user: s.dataset.role, p_role: s.value }); show("Role updated."); }
     catch (err) { show(err.message, "bad"); }
   });
+  bindShared(me);
 }
 
 // ---------------- Router ----------------
@@ -363,7 +567,12 @@ async function route() {
   try {
     if (me.role === "admin") await adminView(me);
     else if (me.role === "tutor") await tutorView(me);
-    else await parentView(me);
+    else {
+      const { data: linked } = await sb.from("students").select("*");
+      const own = (linked || []).filter((k) => k.parent_id === me.id), asStudent = (linked || []).filter((k) => k.parent_id !== me.id);
+      if (!own.length && asStudent.length) await studentView(me, asStudent);
+      else await parentView(me);
+    }
   } catch (err) { app.innerHTML = `<div class="msg bad">${esc(err.message)}</div>`; }
 }
 sb.auth.onAuthStateChange((event) => { if (event === "SIGNED_IN" || event === "SIGNED_OUT") route(); });
