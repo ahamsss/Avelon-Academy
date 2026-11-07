@@ -243,3 +243,7 @@ grant execute on function public.tutor_students(), public.review_session(uuid,te
 grant usage on schema public to service_role;
 grant all on public.profiles, public.students, public.sessions, public.charges to service_role;
 grant execute on all functions in schema public to service_role;
+
+-- RLS policies call my_role(); only logged-in users (and the backend) may execute it.
+revoke execute on function public.my_role(), public.handle_new_user() from public, anon, authenticated;
+grant execute on function public.my_role() to authenticated;
