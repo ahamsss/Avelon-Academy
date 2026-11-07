@@ -40,6 +40,10 @@ async function allowed(req: Request) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (!(await allowed(req))) return json({ error: "Not allowed." }, 401);
+  // Optional: {"parent_ids": [...]} charges only those families (admin "Charge selected"). No list = everyone (Monday run).
+  let only: Set<string> | null = null;
+  try { const body = await req.json(); if (Array.isArray(body?.parent_ids)) only = new Set(body.parent_ids.map(String)); } catch { /* no body */ }
+  if (only && !only.size) return json({ error: "Pick at least one family." }, 400);
 
   const { data: rows, error } = await db.from("sessions")
     .select("id, class_date, minutes, amount_cents, trial_number, students!inner(first_name, parent_id, trial_status)")
@@ -54,6 +58,7 @@ Deno.serve(async (req) => {
   const byParent = new Map<string, any[]>();
   for (const r of billable as any[]) {
     const k = r.students.parent_id;
+    if (only && !only.has(k)) continue;
     if (!byParent.has(k)) byParent.set(k, []);
     byParent.get(k)!.push(r);
   }

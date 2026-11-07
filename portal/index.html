@@ -532,6 +532,7 @@ async function adminView(me) {
     loadSF(),
     sb.rpc("usage_report"),
   ]);
+  const { data: unbilled } = await sb.from("sessions").select("id, student_id, amount_cents, status, trial_number").eq("status", "approved").is("charge_id", null).gt("amount_cents", 0);
   const { data: reports } = await sb.from("weekend_reports").select("student_id, week_start, sent_to, class_count, sent_at").order("sent_at", { ascending: false }).limit(20);
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
   const K = Object.fromEntries((kids || []).map((k) => [k.id, k]));
@@ -583,6 +584,12 @@ async function adminView(me) {
   const weekCount = sf.slots.filter((x) => K[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
   const activeKids = (kids || []).filter((k) => k.active).length;
   const storagePct = usage ? Math.max(Math.round(usage.db_bytes / (500 * 1048576) * 100), Math.round(usage.file_bytes / 1073741824 * 100)) : 0;
+  // Billing: confirmed, not yet charged, grouped by family. Trial classes 2–3 only once the family continues.
+  const billable = (unbilled || []).filter((c) => K[c.student_id] && (!(c.trial_number === 2 || c.trial_number === 3) || K[c.student_id].trial_status === "continuing"));
+  const byFam = {};
+  billable.forEach((c) => { const pid = K[c.student_id].parent_id; (byFam[pid] ||= { n: 0, total: 0, kids: new Set() }); byFam[pid].n++; byFam[pid].total += c.amount_cents; byFam[pid].kids.add(K[c.student_id].first_name); });
+  const readyRows = Object.entries(byFam).map(([pid, f]) => `<tr><td><input type="checkbox" data-billfam="${pid}" data-amt="${f.total}" ${P[pid]?.card_last4 ? "checked" : ""}></td><td>${who(P[pid])}<div class="note">${esc([...f.kids].join(", "))}</div></td><td>${f.n}</td><td><b>${money(f.total)}</b></td><td>${P[pid]?.card_last4 ? "•••• " + esc(P[pid].card_last4) : '<span class="pill warn">No card</span>'}</td></tr>`).join("");
+  const waitingConfirm = (classes || []).filter((c) => c.status === "pending" && c.amount_cents > 0).length;
   const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
   const TILES = [["requests", newReqs, "new trial requests", newReqs > 0], ["week", weekCount, "classes this week"], ["attention", open.length, "classes need attention", (open || []).some((c) => c.status === "flagged")], ["students", activeKids, "active students"], ["tutors", tutors.length, "tutors"], ["parents", parents.length, "parents"], ["storage", storagePct + "%", "storage used", storagePct >= 75]];
   hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
@@ -605,7 +612,10 @@ async function adminView(me) {
     <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
       <button id="previewreports" type="button">Email me a preview of this week's reports</button>
       <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="billing"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button>
+    <div class="panel" id="billing"><h2>Billing</h2><p class="note">Every Monday, each family is charged automatically for their confirmed classes that haven't been charged yet. Only families listed below have anything to charge. To charge some now (for example after a family fixes a failed card), tick them and press Charge selected.</p>
+      ${readyRows ? `<div class="scroll"><table class="table"><thead><tr><th style="width:36px"><input type="checkbox" id="billall" checked aria-label="Select all"></th><th>Family</th><th>Classes</th><th>Amount</th><th>Card</th></tr></thead><tbody>${readyRows}</tbody></table></div>
+      <button id="bill" class="primary" type="button" style="margin-top:14px">Charge selected</button>` : `<p class="note"><b>Nothing to charge right now.</b></p>`}
+      ${waitingConfirm ? `<p class="note">${waitingConfirm} more ${waitingConfirm === 1 ? "class is" : "classes are"} waiting for the family to confirm (auto-confirmed after 24 hours).</p>` : ""}
       <h3 style="margin-top:26px">Payments</h3><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>
     </div></div>`;
@@ -623,11 +633,17 @@ async function adminView(me) {
     try { const r = await call("weekend-report", { preview: true }); show(r.note || (r.sent.length ? `Sent ${r.sent.length} preview(s) to your inbox. Nothing was sent to families.` : "No reports to preview.")); }
     catch (err) { show(err.message, "bad"); }
   };
-  document.getElementById("bill").onclick = async (e) => {
-    if (!confirm("Charge every family's card now for all confirmed, unbilled classes?")) return;
+  const billBtn = document.getElementById("bill");
+  const billAll = document.getElementById("billall");
+  if (billAll) billAll.onchange = () => app.querySelectorAll("[data-billfam]").forEach((x) => { x.checked = billAll.checked; });
+  if (billBtn) billBtn.onclick = async (e) => {
+    const picked = [...app.querySelectorAll("[data-billfam]:checked")];
+    if (!picked.length) return show("Tick at least one family to charge.", "bad");
+    const total = picked.reduce((a, x) => a + Number(x.dataset.amt), 0);
+    if (!confirm(`Charge ${picked.length} ${picked.length === 1 ? "family" : "families"} a total of ${money(total)} now?`)) return;
     e.target.disabled = true;
-    try { const r = await call("weekly-billing"); show(`Charged ${r.charged.length}, failed ${r.failed.length}, no card ${r.noCard.length}.`); }
-    catch (err) { show(err.message, "bad"); }
+    try { const r = await call("weekly-billing", { parent_ids: picked.map((x) => x.dataset.billfam) }); show(`Charged ${r.charged.length}, failed ${r.failed.length}, no card ${r.noCard.length}.`); }
+    catch (err) { e.target.disabled = false; show(err.message, "bad"); }
   };
   app.querySelectorAll("[data-set]").forEach((b) => b.onclick = async () => {
     try { await rpc("admin_set_session", { p_session: b.dataset.id, p_status: b.dataset.set }); show("Updated."); }
