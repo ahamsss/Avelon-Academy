@@ -550,6 +550,7 @@ async function adminView(me) {
   const admins = (people || []).filter((p) => p.role === "admin");
   const open = (classes || []).filter((c) => c.status === "flagged" || c.status === "pending");
   const who = (p) => esc(p?.full_name || p?.email || "");
+  const tutorLabel = (t) => esc(t.full_name ? `${t.full_name} · ${t.email}` : t.email);
   const roleSel = (p) => `<select data-role="${p.id}" style="width:auto">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select>`;
 
   // Trial requests
@@ -570,7 +571,7 @@ async function adminView(me) {
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
   const kidRows = (kids || []).map((k) => `<tr data-kid="${k.id}">
     <td><b>${esc(k.first_name)}</b>${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)}` : ""}</div></td>
-    <td><select name="tutor"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${esc(t.full_name || t.email)}</option>`).join("")}</select></td>
+    <td><select name="tutor"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" style="width:96px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
     <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
@@ -627,7 +628,7 @@ async function adminView(me) {
         <div class="row"><label>Student's first name<input name="student_first_name" required></label>
           <label>Grade<select name="grade">${Array.from({ length: 12 }, (_, i) => `<option>Grade ${i + 1}</option>`).join("")}</select></label>
           <label>Subject<select name="subject">${SUBJECTS.map((x) => `<option>${x}</option>`).join("")}</select></label></div>
-        <div class="row"><label>Tutor <span class="note" style="font-weight:400">(optional)</span><select name="tutor_id"><option value="">Not yet</option>${tutors.concat(admins).map((t) => `<option value="${t.id}">${esc(t.full_name || t.email)}</option>`).join("")}</select></label>
+        <div class="row"><label>Tutor <span class="note" style="font-weight:400">(optional)</span><select name="tutor_id"><option value="">Not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select></label>
           <label>Rate, $/hour <span class="note" style="font-weight:400">(optional, set later is fine)</span><input name="rate" type="number" min="0" step="0.5"></label>
           <label>Student's email <span class="note" style="font-weight:400">(optional, Grade 6+)</span><input name="student_email" type="email"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them that their account is ready</label>

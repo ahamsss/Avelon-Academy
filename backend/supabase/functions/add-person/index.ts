@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       if (st.rate_cents != null && !(st.rate_cents >= 0 && st.rate_cents <= 50000)) return json({ error: "Rate should be between $0 and $500." }, 400);
       if (st.tutor_id) {
         const { data: t } = await db.from("profiles").select("role").eq("id", st.tutor_id).single();
-        if (!t || !["tutor", "admin"].includes(t.role)) return json({ error: "That tutor wasn't found." }, 400);
+        if (!t || t.role !== "tutor") return json({ error: "That tutor wasn't found." }, 400);
       }
     }
 
