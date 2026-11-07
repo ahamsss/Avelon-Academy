@@ -86,6 +86,31 @@ label.upload{margin-top:10px}label.upload input{padding:10px;background:var(--so
 details.kidbox{border:1px solid var(--line);border-radius:16px;padding:14px 18px;margin:10px 0;background:#fff}details.kidbox[open]{background:var(--paper)}details.kidbox summary{cursor:pointer}
 nav.jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}nav.jump a{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}nav.jump a:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
 .panel{scroll-margin-top:90px}
+
+/* Admin dashboard: sidebar + one section at a time, below the navy band */
+body.dashmode .sky .in{padding-bottom:56px}
+body.dashmode main{margin-top:28px}
+.dash{display:grid;grid-template-columns:232px minmax(0,1fr);gap:22px;align-items:start}
+.side{position:sticky;top:96px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:10px;display:flex;flex-direction:column;gap:2px}
+.side .tab{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;border-radius:12px;font-weight:600;font-size:15px;color:var(--ink);cursor:pointer}
+.side .tab:hover{background:var(--soft)}
+.side .tab.on{background:var(--navy);color:#fff}
+.side .tab:focus-visible{outline:2px solid var(--blue-light)}
+.cnt{min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:#E9EEF8;color:var(--blue-text);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.side .tab.on .cnt{background:#60A5FA;color:#0B0D12}
+.dmain > .panel{display:none;margin-bottom:0}
+.dmain > .panel.on{display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin-top:6px}
+.tile{all:unset;box-sizing:border-box;cursor:pointer;border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--paper);display:flex;flex-direction:column;gap:4px}
+.tile:hover{border-color:var(--navy)}
+.tile b{font-family:"Inter Tight",Inter,sans-serif;font-size:34px;letter-spacing:-.03em;line-height:1}
+.tile span{color:var(--muted);font-size:14px}
+.tile.warn{background:#FEF3C7;border-color:#FCD34D}
+@media (max-width:900px){
+  .dash{grid-template-columns:1fr}
+  .side{position:static;flex-direction:row;overflow-x:auto;padding:8px;gap:6px}
+  .side .tab{white-space:nowrap;padding:9px 12px;font-size:14px}
+}
 </style>
 </head>
 <body>
@@ -116,6 +141,7 @@ const pill = (s) => {
   return `<span class="pill ${m[1]}">${esc(m[0])}</span>`;
 };
 let flash = "";
+let adminTab = "overview";
 const params = new URLSearchParams(location.search);
 if (params.get("card") === "saved") flash = `<div class="msg ok">Card saved. It can take a few seconds to show here.</div>`;
 if (params.get("card") === "cancelled") flash = `<div class="msg info">No card was saved.</div>`;
@@ -267,6 +293,7 @@ function bindShared(me) {
 
 // ---------------- Login ----------------
 function loginView() {
+  document.body.classList.remove("dashmode");
   document.getElementById("signout").classList.add("hidden");
   document.getElementById("who").textContent = "";
   hero("Family &amp; tutor portal", 'Welcome <span class="star">back.</span>', "Sign in to confirm classes, see notes and homework, and manage payments.");
@@ -298,6 +325,7 @@ function loginView() {
 
 // ---------------- Parent ----------------
 async function parentView(me) {
+  document.body.classList.remove("dashmode");
   const [{ data: allKids }, { data: classes }, { data: pays }, sf] = await Promise.all([
     sb.from("students").select("*").order("created_at"),
     sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id").order("class_date", { ascending: false }).limit(100),
@@ -406,6 +434,7 @@ async function parentView(me) {
 
 // ---------------- Student (a teen whose email is on file) ----------------
 async function studentView(me, kids) {
+  document.body.classList.remove("dashmode");
   const sf = await loadSF();
   const byId = Object.fromEntries(kids.map((k) => [k.id, k]));
   hero("Student portal", `Hi ${esc(kids[0].first_name)}<span class="star">.</span>`, "Your class times, Google Meet links and files.");
@@ -418,6 +447,7 @@ async function studentView(me, kids) {
 
 // ---------------- Tutor ----------------
 async function tutorView(me) {
+  document.body.classList.remove("dashmode");
   const [{ data: kids }, { data: classes }, sf] = await Promise.all([
     sb.rpc("tutor_students"),
     sb.from("sessions").select("id, student_id, class_date, minutes, status, flag_reason").eq("tutor_id", me.id).order("class_date", { ascending: false }).limit(60),
@@ -453,6 +483,7 @@ async function tutorView(me) {
 
 // ---------------- Admin ----------------
 async function adminView(me) {
+  document.body.classList.add("dashmode");
   const [{ data: people }, { data: kids }, { data: classes }, { data: pays }, { data: reqs }, sf, { data: usage }] = await Promise.all([
     sb.from("profiles").select("id, email, full_name, phone, role, card_last4, created_at").order("created_at", { ascending: false }),
     sb.from("students").select("*").order("created_at", { ascending: false }),
@@ -510,10 +541,18 @@ async function adminView(me) {
   const bar = (used, total, label) => { const pct = Math.min(100, Math.round((used / total) * 100)); return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${label}</span><span>${(used / 1048576).toFixed(0)} MB of ${total >= 1073741824 ? "1 GB" : (total / 1048576) + " MB"} · <b>${pct}%</b></span></div><div style="height:10px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.max(pct, 1)}%;background:${pct >= 75 ? "var(--warn)" : "var(--navy)"}"></div></div></div>`; };
   const usageHtml = usage ? bar(usage.db_bytes, 500 * 1048576, "Database") + bar(usage.file_bytes, 1073741824, `Class files (${usage.file_count})`) : `<p class="note">Couldn't load usage.</p>`;
 
+  const weekCount = sf.slots.filter((x) => K[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
+  const activeKids = (kids || []).filter((k) => k.active).length;
+  const storagePct = usage ? Math.max(Math.round(usage.db_bytes / (500 * 1048576) * 100), Math.round(usage.file_bytes / 1073741824 * 100)) : 0;
+  const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
+  const TILES = [["requests", newReqs, "new trial requests", newReqs > 0], ["week", weekCount, "classes this week"], ["attention", open.length, "classes need attention", (open || []).some((c) => c.status === "flagged")], ["students", activeKids, "active students"], ["tutors", tutors.length, "tutors"], ["parents", parents.length, "parents"], ["storage", storagePct + "%", "storage used", storagePct >= 75]];
   hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
   app.innerHTML = `
     ${flash}
-    <nav class="jump">${[["requests", "Trial requests"], ["week", "This week"], ["attention", "Needs attention"], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]].map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
+    <div class="dash">
+    <aside class="side" aria-label="Admin sections">${SECTIONS.map(([id, t, n]) => `<button type="button" class="tab" data-tab="${id}">${t}${n ? `<span class="cnt">${n}</span>` : ""}</button>`).join("")}</aside>
+    <div class="dmain">
+    <div class="panel" id="overview"><h2>Overview</h2><div class="tiles">${TILES.map(([id, num, label, warn]) => `<button type="button" class="tile${warn ? " warn" : ""}" data-tab="${id}"><b>${num}</b><span>${label}</span></button>`).join("")}</div></div>
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th></tr></thead><tbody>${reqRows || `<tr><td colspan="4" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
@@ -529,9 +568,17 @@ async function adminView(me) {
       <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="billing"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button>
       <h3 style="margin-top:26px">Payments</h3><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>`;
+    <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>
+    </div></div>`;
   flash = "";
 
+  const pick = (id) => {
+    adminTab = id;
+    app.querySelectorAll(".dmain > .panel").forEach((p) => p.classList.toggle("on", p.id === id));
+    app.querySelectorAll(".side .tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
+  };
+  app.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { pick(b.dataset.tab); if (innerWidth < 900) app.querySelector(".dmain").scrollIntoView({ behavior: "smooth" }); });
+  pick(app.querySelector(`#${adminTab}`) ? adminTab : "overview");
   document.getElementById("previewreports").onclick = async (e) => {
     e.target.disabled = true;
     try { const r = await call("weekend-report", { preview: true }); show(r.note || (r.sent.length ? `Sent ${r.sent.length} preview(s) to your inbox. Nothing was sent to families.` : "No reports to preview.")); }
