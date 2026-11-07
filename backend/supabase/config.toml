@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.cleanup-files]
 verify_jwt = false
+
+[functions.weekend-report]
+verify_jwt = false

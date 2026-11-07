@@ -435,8 +435,8 @@ async function tutorView(me) {
         <div class="row"><label>Student<select name="student_id" required>${kids.map((k) => `<option value="${k.id}">${esc(k.first_name)} · ${esc(k.grade || "")} ${esc(k.subject || "")}</option>`).join("")}</select></label>
         <label>Date<input name="class_date" type="date" value="${today()}" max="${today()}" required></label>
         <label>Length<select name="minutes"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>60 min</option><option value="75">75 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label></div>
-        <label>What you covered<textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators. Good progress."></textarea></label>
-        <label>Homework<textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
+        <label>What you covered <span class="note" style="font-weight:400">(goes into the student's weekend report)</span><textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators. Good progress."></textarea></label>
+        <label>Homework <span class="note" style="font-weight:400">(listed under "To practise next")</span><textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
         <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
     <div class="panel"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>
@@ -462,6 +462,7 @@ async function adminView(me) {
     loadSF(),
     sb.rpc("usage_report"),
   ]);
+  const { data: reports } = await sb.from("weekend_reports").select("student_id, week_start, sent_to, class_count, sent_at").order("sent_at", { ascending: false }).limit(20);
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
   const K = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const tutors = (people || []).filter((p) => p.role === "tutor");
@@ -512,7 +513,7 @@ async function adminView(me) {
   hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
   app.innerHTML = `
     ${flash}
-    <nav class="jump">${[["requests", "Trial requests"], ["week", "This week"], ["attention", "Needs attention"], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["billing", "Billing"], ["storage", "Storage"]].map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
+    <nav class="jump">${[["requests", "Trial requests"], ["week", "This week"], ["attention", "Needs attention"], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]].map(([id, t]) => `<a href="#${id}">${t}</a>`).join("")}</nav>
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th></tr></thead><tbody>${reqRows || `<tr><td colspan="4" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
@@ -523,11 +524,19 @@ async function adminView(me) {
       ${(kids || []).filter((k) => k.active).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))} · tutor: ${who(P[k.tutor_id]) || "none"} · ${sf.slots.filter((s) => s.student_id === k.id).length} weekly class(es)</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students yet.</p>`}</div>
     <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">To add a tutor: they sign up at avelonacademy.ca/portal, then you change their role to "tutor" in the Parents list below.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th>Role</th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Everyone who signs up starts here as a parent.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th>Role</th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
+      <button id="previewreports" type="button">Email me a preview of this week's reports</button>
+      <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="billing"><h2>Billing</h2><p class="note">Billing runs automatically every Monday. Use this to run it now (for example after fixing a failed card).</p><button id="bill" class="primary" type="button">Charge all confirmed classes now</button>
       <h3 style="margin-top:26px">Payments</h3><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>`;
   flash = "";
 
+  document.getElementById("previewreports").onclick = async (e) => {
+    e.target.disabled = true;
+    try { const r = await call("weekend-report", { preview: true }); show(r.note || (r.sent.length ? `Sent ${r.sent.length} preview(s) to your inbox. Nothing was sent to families.` : "No reports to preview.")); }
+    catch (err) { show(err.message, "bad"); }
+  };
   document.getElementById("bill").onclick = async (e) => {
     if (!confirm("Charge every family's card now for all confirmed, unbilled classes?")) return;
     e.target.disabled = true;
