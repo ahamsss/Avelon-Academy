@@ -494,6 +494,18 @@ Avelon Academy
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduce) document.querySelectorAll('.art svg').forEach(function(sv){ if (sv.pauseAnimations) sv.pauseAnimations(); });
 
+  // in-page links (Programs, How it works, Book a trial...): scroll smoothly without adding #section to the address bar
+  document.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    var id = a.getAttribute('href').slice(1), el = id ? document.getElementById(id) : document.body;
+    if (!el) return;
+    e.preventDefault();
+    el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  });
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
   // header border on scroll
   var bar = document.getElementById('top-bar');
   window.addEventListener('scroll', function(){ bar.classList.toggle('scrolled', window.scrollY > 10); }, {passive:true});
