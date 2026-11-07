@@ -585,7 +585,7 @@ async function adminView(me) {
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
     const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
     return `<tr><td><b>${esc(t.full_name || "")}</b> <button class="small" type="button" data-rename="${t.id}" data-name="${esc(t.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
-      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td>${roleSel(t)}</td></tr>`;
+      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td>${t.role === "tutor" ? `<button class="small" type="button" data-untutor="${t.id}" data-name="${esc(t.full_name || t.email)}">Remove tutor access</button>` : ""}</td></tr>`;
   }).join("");
 
   const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${who(P[c.parent_id])}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
@@ -602,7 +602,7 @@ async function adminView(me) {
   billable.forEach((c) => { const pid = K[c.student_id].parent_id; (byFam[pid] ||= { n: 0, total: 0, kids: new Set() }); byFam[pid].n++; byFam[pid].total += c.amount_cents; byFam[pid].kids.add(K[c.student_id].first_name); });
   const readyRows = Object.entries(byFam).map(([pid, f]) => `<tr><td><input type="checkbox" data-billfam="${pid}" data-amt="${f.total}" ${P[pid]?.card_last4 ? "checked" : ""}></td><td>${who(P[pid])}<div class="note">${esc([...f.kids].join(", "))}</div></td><td>${f.n}</td><td><b>${money(f.total)}</b></td><td>${P[pid]?.card_last4 ? "•••• " + esc(P[pid].card_last4) : '<span class="pill warn">No card</span>'}</td></tr>`).join("");
   const waitingConfirm = (classes || []).filter((c) => c.status === "pending" && c.amount_cents > 0).length;
-  const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["people", "Add people"], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["students", "Students"], ["schedules", "Schedules & files"], ["tutors", "Tutors"], ["parents", "Parents"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
+  const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["people", "Add people"], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["students", "Students"], ["parents", "Parents"], ["tutors", "Tutors"], ["schedules", "Schedules & files"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
   const TILES = [["requests", newReqs, "new trial requests", newReqs > 0], ["week", weekCount, "classes this week"], ["attention", open.length, "classes need attention", (open || []).some((c) => c.status === "flagged")], ["students", activeKids, "active students"], ["tutors", tutors.length, "tutors"], ["parents", parents.length, "parents"], ["storage", storagePct + "%", "storage used", storagePct >= 75]];
   hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
   app.innerHTML = `
@@ -637,7 +637,7 @@ async function adminView(me) {
         <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Their email<input name="email" type="email" required></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them a welcome with how to sign in</label>
         <button class="primary" type="submit">Add tutor</button></form></div>
-    <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. To take away someone's tutor access, change their role back to parent.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th>Role</th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. If someone stops tutoring, press <b>Remove tutor access</b> so they can no longer see students.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Families you add, plus anyone who signs in on their own. Your own account appears here too if you sign in with another email for testing.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th>Role</th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
       <button id="previewreports" type="button">Email me a preview of this week's reports</button>
@@ -707,6 +707,11 @@ async function adminView(me) {
     catch (err) { btn.disabled = false; show(err.message, "bad"); }
   }; };
   addPerson("addfam", "family"); addPerson("addtutor", "tutor");
+  app.querySelectorAll("[data-untutor]").forEach((b) => b.onclick = async () => {
+    if (!confirm(`Remove ${b.dataset.name}'s tutor access? They'll no longer see any students. Reassign their students first.`)) return;
+    try { await rpc("admin_set_role", { p_user: b.dataset.untutor, p_role: "parent" }); show("Tutor access removed."); }
+    catch (err) { show(err.message, "bad"); }
+  });
   app.querySelectorAll("[data-rename]").forEach((b) => b.onclick = async () => {
     const n = prompt("New name:", b.dataset.name || ""); if (n == null || !n.trim()) return;
     try { await rpc("admin_set_name", { p_user: b.dataset.rename, p_name: n.trim() }); show("Name updated."); }
