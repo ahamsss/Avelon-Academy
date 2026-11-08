@@ -53,6 +53,9 @@ textarea{min-height:84px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--blue-light);outline-offset:1px}
 .form{display:grid;gap:14px}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.row label:not(.check){display:grid;grid-template-columns:auto minmax(0,1fr);align-content:start;align-items:baseline;column-gap:5px;row-gap:6px}
+.row label:not(.check)>input,.row label:not(.check)>select,.row label:not(.check)>textarea{grid-column:1/-1}
+.row label .note{font-weight:400}
 button{font:inherit;font-weight:600;cursor:pointer;border-radius:999px;padding:10px 20px;border:1.5px solid var(--navy);background:transparent;color:var(--navy);min-height:46px;transition:background .25s,color .25s,border-color .25s}
 button:hover{background:var(--navy);color:#fff}
 button.primary{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -692,7 +695,7 @@ async function adminView(me) {
         <div class="row"><label>Student's email <span class="note" style="font-weight:400">(optional, Grade 6+)</span><input name="student_email" type="email"></label>
           <label>Tutor <span class="note" style="font-weight:400">(optional)</span><select name="tutor_id"><option value="">Not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select></label>
           <label>Rate, $/hour <span class="note" style="font-weight:400">(optional)</span><input name="rate" type="number" min="0" step="0.5"></label></div>
-        <div class="row"><label>Parent/guardian name<input name="full_name" required></label><label>Parent/guardian email <span class="note" style="font-weight:400">(signs in and pays)</span><input name="email" type="email" required></label><label>Parent/guardian phone<input name="phone" type="tel"></label></div>
+        <div class="row"><label>Parent's name<input name="full_name" required></label><label>Parent's email <span class="note" style="font-weight:400">(signs in, pays)</span><input name="email" type="email" required></label><label>Parent's phone<input name="phone" type="tel"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them that their account is ready</label>
         <button class="primary" type="submit">Add family</button></form>
       <h3 style="margin:34px 0 10px">Add a tutor</h3>
