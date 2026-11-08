@@ -405,7 +405,7 @@ function codeView(email, sent) {
 async function myView(me, own, asStudent) {
   document.body.classList.add("dashmode");
   const holder = own.length > 0 || !asStudent.length;
-  const kids = own.concat(asStudent.filter((k) => !own.some((o) => o.id === k.id)));
+  const kids = own.concat(asStudent.filter((k) => !own.some((o) => o.id === k.id))).filter((k) => k.active !== false);
   const [{ data: classes }, { data: pays }, sf] = await Promise.all([
     sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id").order("class_date", { ascending: false }).limit(100),
     holder ? sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
@@ -584,7 +584,7 @@ async function tutorView(me) {
 async function adminView(me) {
   document.body.classList.add("dashmode");
   const [{ data: people }, { data: kids }, { data: classes }, { data: pays }, { data: reqs }, sf, { data: usage }] = await Promise.all([
-    sb.from("profiles").select("id, email, full_name, phone, role, card_last4, created_at").order("created_at", { ascending: false }),
+    sb.from("profiles").select("id, email, full_name, phone, role, card_last4, created_at, archived_at").order("created_at", { ascending: false }),
     sb.from("students").select("*").order("created_at", { ascending: false }),
     sb.from("sessions").select("id, student_id, tutor_id, class_date, minutes, amount_cents, status, flag_reason, trial_number, charge_id").order("class_date", { ascending: false }).limit(200),
     sb.from("charges").select("*").order("created_at", { ascending: false }).limit(50),
@@ -620,19 +620,21 @@ async function adminView(me) {
   const groups = {};
   for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
-  const kidRows = (kids || []).map((k) => `<tr data-kid="${k.id}">
-    <td><b>${esc(k.first_name)}</b>${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)}` : ""}</div></td>
+  const kidRows = (kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)).map((k) => `<tr data-kid="${k.id}"${k.active ? "" : ' style="opacity:.6"'}>
+    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)}` : ""}</div></td>
     <td><select name="tutor"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" style="width:96px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
     <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
-    <td><button class="small" data-savekid type="button">Save</button></td></tr>`).join("");
+    <td style="white-space:nowrap"><button class="small" data-savekid type="button">Save</button> <button class="small" data-rmkid="${k.id}" data-name="${esc(k.first_name)}" type="button">Remove</button></td></tr>`).join("");
 
   // Parents and tutors
-  const parentRows = parents.map((p) => {
+  const parentRows = parents.slice().sort((x, y) => (x.archived_at ? 1 : 0) - (y.archived_at ? 1 : 0)).map((p) => {
     const ch = (kids || []).filter((k) => k.parent_id === p.id);
     return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="small" type="button" data-rename="${p.id}" data-name="${esc(p.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
-      <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td>${roleSel(p)}</td></tr>`;
+      <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td style="white-space:nowrap">${p.archived_at
+        ? `<span class="pill">Removed</span> <button class="small" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button>`
+        : `${roleSel(p)} <button class="small" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</td></tr>`;
   }).join("");
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
     const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
@@ -759,6 +761,19 @@ async function adminView(me) {
     catch (err) { btn.disabled = false; show(err.message, "bad"); }
   }; };
   addPerson("addfam", "family"); addPerson("addtutor", "tutor");
+  const removeMsg = (r) => r.result === "deleted" ? `${r.name} was deleted.` : r.result === "archived" ? `${r.name} was removed. Their class and payment records are kept.` : `${r.name} was restored. Turn their students back on in Students.`;
+  app.querySelectorAll("[data-rmkid]").forEach((b) => b.onclick = async () => {
+    if (!confirm(`Remove ${b.dataset.name}?\n\nTheir weekly class times are cleared and their tutor can no longer log classes. If they never had a class, they are deleted completely; otherwise their class and payment records are kept.`)) return;
+    try { show(removeMsg(await call("remove-person", { kind: "student", id: b.dataset.rmkid }))); } catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-rmfam]").forEach((b) => b.onclick = async () => {
+    if (!confirm(`Remove the ${b.dataset.name} family?\n\nThey can no longer log in and all their students are removed. If they never had a class or payment, the account is deleted completely; otherwise their records are kept and you can restore them later. Any confirmed classes not yet charged will still be charged.`)) return;
+    try { show(removeMsg(await call("remove-person", { kind: "parent", id: b.dataset.rmfam }))); } catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-restorefam]").forEach((b) => b.onclick = async () => {
+    if (!confirm(`Restore ${b.dataset.name}? They'll be able to log in again.`)) return;
+    try { show(removeMsg(await call("remove-person", { kind: "parent", id: b.dataset.restorefam, action: "restore" }))); } catch (err) { show(err.message, "bad"); }
+  });
   app.querySelectorAll("[data-untutor]").forEach((b) => b.onclick = async () => {
     if (!confirm(`Remove ${b.dataset.name}'s tutor access? They'll no longer see any students. Reassign their students first.`)) return;
     try { await rpc("admin_set_role", { p_user: b.dataset.untutor, p_role: "parent" }); show("Tutor access removed."); }

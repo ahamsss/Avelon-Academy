@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.redeem-invite]
 verify_jwt = false
+
+[functions.remove-person]
+verify_jwt = false
