@@ -1,6 +1,7 @@
 // Avelon Academy: the weekend report.
 // Every Saturday (pg_cron), each student with classes in the past 7 days gets ONE email to the email on file
 // (the student's own email if the parent added it, otherwise the parent's), listing what was covered and what to practise.
+// A student taking several subjects gets one email with a section per subject.
 // Admins can also call it from the portal: {"preview": true} sends every report to the admin only, without marking them sent.
 // Supabase > Edge Functions > name: weekend-report  (Verify JWT OFF; checks the cron secret or an admin login)
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -46,43 +47,54 @@ async function allowed(req: Request) {
 
 type Cls = { class_date: string; minutes: number; notes: string | null; homework: string | null; next_plan: string | null; tutor_id: string };
 
-function reportEmail(first: string, grade: string, subject: string, weekLabel: string, classes: Cls[], tutorName: string) {
-  const totalMin = classes.reduce((a, c) => a + c.minutes, 0);
-  const hw = classes.map((c) => (c.homework || "").trim()).filter(Boolean);
-  const rows = classes.map((c) => `
+type Part = { subject: string; tutorName: string; classes: Cls[] };
+const joinNames = (xs: string[]) => xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " & " + xs[xs.length - 1];
+
+// One email per student. A student taking several subjects gets one section per subject.
+function reportEmail(first: string, grade: string, parts: Part[], weekLabel: string) {
+  const all = parts.flatMap((p) => p.classes);
+  const totalMin = all.reduce((a, c) => a + c.minutes, 0);
+  const multi = parts.length > 1;
+  const subjects = joinNames(parts.map((p) => p.subject).filter(Boolean));
+  const tutors = [...new Set(parts.map((p) => p.tutorName).filter(Boolean))];
+  const label = (t: string, mt = 0) => `<div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin:${mt}px 0 4px">${t}</div>`;
+  const box = (t: string, inner: string, mb = 16) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:6px 0 ${mb}px"><tr><td style="padding:18px 22px">
+        <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:10px">${t}</div>${inner}</td></tr></table>`;
+
+  const section = (p: Part) => {
+    const hw = p.classes.map((c) => (c.homework || "").trim()).filter(Boolean);
+    const plan = [...p.classes].reverse().map((c) => (c.next_plan || "").trim()).find(Boolean) || "";
+    const rows = p.classes.map((c) => `
     <tr><td style="padding:16px 0;border-top:1px solid #E2E2DD">
       <div style="font:700 15px Arial,sans-serif;color:#0B0D12">${esc(pretty(c.class_date, { weekday: "long", month: "short", day: "numeric" }))}
         <span style="font-weight:400;color:#5A5F6E">&nbsp;&middot;&nbsp;${c.minutes} min</span></div>
       ${c.notes ? `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12;margin-top:6px">${nl(c.notes)}</div>` : ""}
     </td></tr>`).join("");
-  const plan = [...classes].reverse().map((c) => (c.next_plan || "").trim()).find(Boolean) || "";
-  const box = (label: string, inner: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:6px 0 16px"><tr><td style="padding:18px 22px">
-        <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:10px">${label}</div>${inner}</td></tr></table>`;
-  const nextWeek = plan ? box("Next week", `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12">${nl(plan)}</div>`) : "";
-  const practise = hw.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:6px 0 26px"><tr><td style="padding:18px 22px">
-        <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:10px">To practise next</div>
-        ${hw.map((h) => `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12;margin:0 0 6px">&bull;&nbsp; ${nl(h)}</div>`).join("")}
-      </td></tr></table>`
-    : "";
+    const head = multi
+      ? `<div style="font:700 22px/1.2 Arial,sans-serif;color:#0B0D12;margin:0 0 2px">${esc(p.subject)}</div>
+         <div style="font:14px Arial,sans-serif;color:#5A5F6E;margin:0 0 14px">${p.tutorName ? "with " + esc(p.tutorName) + " &middot; " : ""}${p.classes.length} class${p.classes.length === 1 ? "" : "es"}</div>` : "";
+    return `${head}${label("What we covered")}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px">${rows}</table>
+    ${hw.length ? box("To practise next", hw.map((h) => `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12;margin:0 0 6px">&bull;&nbsp; ${nl(h)}</div>`).join("")) : ""}
+    ${plan ? box("Next week", `<div style="font:15px/1.6 Arial,sans-serif;color:#0B0D12">${nl(plan)}</div>`) : ""}`;
+  };
+  const body = parts.map(section).join(`<div style="height:1px;background:#E2E2DD;margin:16px 0 26px"></div>`);
+  const who = tutors.length ? joinNames(tutors) : "your tutor";
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"></head>
 <body style="margin:0;padding:0;background:#F1F1EE">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(first)}'s week: ${classes.length} class${classes.length === 1 ? "" : "es"}, ${totalMin} minutes of ${esc(subject || "tutoring")}.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(first)}'s week: ${all.length} class${all.length === 1 ? "" : "es"}, ${totalMin} minutes of ${esc(subjects || "tutoring")}.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE"><tr><td align="center" style="padding:32px 14px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
   <tr><td style="background:#0E1528;border-radius:20px 20px 0 0;padding:30px 36px 28px">
     <img src="${SITE}/email-logo.png" width="205" height="35" alt="Avelon Academy" style="display:block;border:0;width:205px;height:35px;color:#F3EFE6;font:800 20px Arial,sans-serif">
     <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#93C5FD;margin-top:26px">Weekend report &middot; ${esc(weekLabel)}</div>
     <div style="font:700 30px/1.15 Arial,sans-serif;color:#FFFFFF;margin-top:8px;letter-spacing:-.5px">${esc(first)}'s week<span style="color:#E0B354">.</span></div>
-    <div style="font:15px/1.5 Arial,sans-serif;color:#C3CBDD;margin-top:8px">${esc([grade, subject].filter(Boolean).join(" · "))} &middot; ${classes.length} class${classes.length === 1 ? "" : "es"}, ${totalMin} minutes</div>
+    <div style="font:15px/1.5 Arial,sans-serif;color:#C3CBDD;margin-top:8px">${esc([grade, subjects].filter(Boolean).join(" · "))} &middot; ${all.length} class${all.length === 1 ? "" : "es"}, ${totalMin} minutes</div>
   </td></tr>
   <tr><td style="background:#FFFFFF;padding:28px 36px 8px">
-    <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:4px">What we covered</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px">${rows}</table>
-    ${practise}
-    ${nextWeek}
-    <p style="font:15px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">Questions, or something you'd like ${tutorName ? esc(tutorName) : "your tutor"} to focus on next week? Just reply to this email.</p>
+    ${body}
+    <p style="font:15px/1.65 Arial,sans-serif;color:#0B0D12;margin:10px 0 16px">Questions, or something you'd like ${esc(who)} to focus on next week? Just reply to this email.</p>
     <p style="font:15px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 30px">Have a great weekend,<br><b>Avelon Academy</b></p>
   </td></tr>
   <tr><td style="background:#0E1528;border-radius:0 0 20px 20px;padding:22px 36px">
@@ -90,12 +102,17 @@ function reportEmail(first: string, grade: string, subject: string, weekLabel: s
   </td></tr>
 </table></td></tr></table></body></html>`;
 
+  const textPart = (p: Part) => {
+    const hw = p.classes.map((c) => (c.homework || "").trim()).filter(Boolean);
+    const plan = [...p.classes].reverse().map((c) => (c.next_plan || "").trim()).find(Boolean) || "";
+    return `${multi ? `== ${p.subject.toUpperCase()}${p.tutorName ? " (with " + p.tutorName + ")" : ""} ==\n` : ""}WHAT WE COVERED
+${p.classes.map((c) => `${pretty(c.class_date, { weekday: "long", month: "short", day: "numeric" })} · ${c.minutes} min\n${c.notes || ""}`).join("\n\n")}
+${hw.length ? `\nTO PRACTISE NEXT\n${hw.map((h) => "- " + h).join("\n")}\n` : ""}${plan ? `\nNEXT WEEK\n${plan}\n` : ""}`;
+  };
   const text = `${first}'s week (${weekLabel})
-${[grade, subject].filter(Boolean).join(" · ")} · ${classes.length} class(es), ${totalMin} minutes
+${[grade, subjects].filter(Boolean).join(" · ")} · ${all.length} class(es), ${totalMin} minutes
 
-WHAT WE COVERED
-${classes.map((c) => `${pretty(c.class_date, { weekday: "long", month: "short", day: "numeric" })} · ${c.minutes} min\n${c.notes || ""}`).join("\n\n")}
-${hw.length ? `\nTO PRACTISE NEXT\n${hw.map((h) => "- " + h).join("\n")}\n` : ""}${plan ? `\nNEXT WEEK\n${plan}\n` : ""}
+${parts.map(textPart).join("\n")}
 Questions? Just reply to this email.
 
 Avelon Academy
@@ -136,19 +153,30 @@ Deno.serve(async (req) => {
   const P = Object.fromEntries((profs ?? []).map((p) => [p.id, p]));
 
   const result = { sent: [] as string[], skipped: [] as string[], failed: [] as string[], preview };
+  // Group subject rows that belong to the same student (same family, same first name, same inbox).
+  const groups = new Map<string, any[]>();
   for (const k of kids ?? []) {
-    if (!k.active) { result.skipped.push(`${k.first_name} (inactive)`); continue; }
-    if (!preview && already.has(k.id)) { result.skipped.push(`${k.first_name} (already sent)`); continue; }
-    const classes = byStudent.get(k.id)!;
+    if (!k.active) { result.skipped.push(`${k.first_name} ${k.subject || ""} (inactive)`); continue; }
+    if (!preview && already.has(k.id)) { result.skipped.push(`${k.first_name} ${k.subject || ""} (already sent)`); continue; }
     const to_ = k.student_email || P[k.parent_id]?.email;
     if (!to_) { result.skipped.push(`${k.first_name} (no email)`); continue; }
-    const tutor = P[classes[classes.length - 1].tutor_id]?.full_name?.split(" ")[0] || "";
-    const { html, text } = reportEmail(k.first_name, k.grade || "", k.subject || "", weekLabel, classes, tutor);
+    const key = `${k.parent_id}|${k.first_name.trim().toLowerCase()}|${to_.toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ ...k, to_ });
+  }
+  for (const rows of groups.values()) {
+    const k = rows[0], to_ = k.to_;
+    const parts: Part[] = rows.map((r) => {
+      const classes = byStudent.get(r.id)!;
+      return { subject: r.subject || "", tutorName: P[classes[classes.length - 1].tutor_id]?.full_name?.split(" ")[0] || "", classes };
+    });
+    const grade = rows.find((r) => r.grade)?.grade || "";
+    const { html, text } = reportEmail(k.first_name, grade, parts, weekLabel);
     const subject = `${preview ? "[Preview for " + to_ + "] " : ""}${k.first_name}'s weekend report: ${weekLabel}`;
     const ok = await sendEmail(preview ? ADMIN : to_, subject, html, text);
     if (!ok) { result.failed.push(k.first_name); continue; }
-    result.sent.push(`${k.first_name} → ${preview ? ADMIN + " (preview)" : to_}`);
-    if (!preview) await db.from("weekend_reports").insert({ student_id: k.id, week_start: from, sent_to: to_, class_count: classes.length });
+    result.sent.push(`${k.first_name}${rows.length > 1 ? " (" + joinNames(rows.map((r) => r.subject)) + ")" : ""} → ${preview ? ADMIN + " (preview)" : to_}`);
+    if (!preview) for (const r of rows) await db.from("weekend_reports").insert({ student_id: r.id, week_start: from, sent_to: to_, class_count: byStudent.get(r.id)!.length });
   }
   return json(result);
 });

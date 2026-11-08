@@ -68,6 +68,11 @@ button.ed{min-height:0;padding:1px 5px;margin-left:2px;border:0;border-radius:6p
 button.ed:hover{background:var(--soft);color:var(--navy)}
 .acts{display:flex;gap:2px;align-items:center;justify-content:flex-end;flex-wrap:nowrap}
 #students .table td:first-child{min-width:175px}
+.subline{font-size:16px;font-weight:600;color:var(--ink);margin:8px 0 6px}.with{font-weight:500;color:var(--muted)}.dot{color:var(--muted);margin:0 8px}
+.subblock{border-top:1px solid var(--line);margin-top:14px;padding-top:18px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--soft);border-radius:999px;padding:4px;gap:4px;margin:12px 0 0}.seg button{min-height:0;border:0;padding:7px 18px;font-size:14px;border-radius:999px;color:var(--ink);background:transparent}.seg button:hover{background:#fff;color:var(--ink)}.seg button.on{background:var(--navy);color:#fff}.subhead{display:flex;justify-content:space-between;align-items:center;gap:10px}.subhead h3{margin:0;font-size:20px}
+.table tr.more td{border-bottom:1px dashed var(--line)}.table tr.cont td{padding-top:8px}
+.addsub td{background:var(--soft)}.addsub .acts{justify-content:flex-start;gap:8px;flex-wrap:wrap}.addsub select{max-width:220px}.addsub select,.addsub input{width:auto;padding:7px 10px;font-size:14px;border-radius:8px}
 .gs{font-size:14px;font-weight:600;color:var(--ink);margin-top:2px}
 .saved{font-size:13px;font-weight:600;color:var(--muted);min-width:62px;text-align:right;margin-right:4px}.saved.ok{color:var(--ok)}.saved.bad{color:var(--bad)}
 .acts select{width:auto;padding:5px 10px;font-size:13px;border-radius:8px;margin-right:4px}
@@ -416,6 +421,25 @@ function codeView(email, sent) {
 // One view for everyone in a family. The account holder (whoever signed up) also gets
 // rates, payments, details and "Add a student". A student signed in with their own email
 // gets the same schedule, files and classes, without anything about money.
+// A student taking several subjects has one row per subject (each with its own tutor, rate and schedule).
+// These helpers group the rows back into one person for display.
+const learnerKey = (k) => `${k.parent_id}|${String(k.first_name || "").trim().toLowerCase()}`;
+function groupLearners(list) {
+  const m = new Map();
+  for (const k of list) { const key = learnerKey(k); if (!m.has(key)) m.set(key, []); m.get(key).push(k); }
+  return [...m.values()];
+}
+const andJoin = (xs) => xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " & " + xs[xs.length - 1];
+// One tutor: "Math & Science · with Maisha". Different tutors: "Math with Nile · Science with Maisha".
+function subjectLine(rows, tname) {
+  const subs = rows.map((r) => r.subject || "");
+  const names = rows.map((r) => (r.tutor_id && tname(r.tutor_id)) || "");
+  const uniq = [...new Set(names)];
+  if (uniq.length === 1) return `${esc(andJoin(subs.filter(Boolean)))} <span class="with">· ${uniq[0] ? "with " + esc(uniq[0]) : "tutor coming soon"}</span>`;
+  return rows.map((r, i) => `${esc(subs[i])} <span class="with">with ${names[i] ? esc(names[i]) : "tutor soon"}</span>`).join('<span class="dot">·</span>');
+}
+
+const segPick = {};
 async function myView(me, own, asStudent) {
   document.body.classList.add("dashmode");
   const holder = own.length > 0 || !asStudent.length;
@@ -425,6 +449,11 @@ async function myView(me, own, asStudent) {
     holder ? sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
     loadSF(),
   ]);
+  const { data: tn } = await sb.rpc("my_tutor_names");
+  const TN = Object.fromEntries((tn || []).map((t) => [t.id, t.first_name]));
+  const learners = groupLearners(kids);
+  const multi = (k) => learners.some((g) => g.length > 1 && g.includes(k));
+  const kname = (k) => k.first_name + (multi(k) && k.subject ? " · " + k.subject : "");
   const byId = Object.fromEntries(kids.map((k) => [k.id, k]));
   const isOwn = (k) => k.parent_id === me.id;
   const mine = (classes || []).filter((c) => byId[c.student_id]);
@@ -451,11 +480,12 @@ async function myView(me, own, asStudent) {
     const act = c.status === "pending"
       ? `<div class="actions"><button class="small primary" data-ok="${c.id}" type="button">Confirm</button><button class="small" data-flag="${c.id}" type="button">Something's wrong</button></div>` : "";
     const details = showNotes(k) ? [c.notes && `<b>Covered:</b> ${esc(c.notes)}`, c.homework && `<b>Homework:</b> ${esc(c.homework)}`].filter(Boolean).join("<br>") : "";
-    return `<tr><td>${esc(c.class_date)}</td>${withName ? `<td>${esc(k.first_name || "")}</td>` : ""}<td>${c.minutes} min</td>${holder ? `<td>${amt}</td>` : ""}<td>${pill(c.status)}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
+    return `<tr><td>${esc(c.class_date)}</td>${withName ? `<td>${esc(kname(k))}</td>` : ""}<td>${c.minutes} min</td>${holder ? `<td>${amt}</td>` : ""}<td>${pill(c.status)}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
   };
   const classTable = (list, withName) => `<div class="scroll"><table class="table"><thead><tr><th>Date</th>${withName ? "<th>Student</th>" : ""}<th>Length</th>${holder ? "<th>Amount</th>" : ""}<th>Status</th></tr></thead><tbody>${list.map((c) => classRow(c, withName)).join("") || `<tr><td colspan="5" class="note">No classes yet.</td></tr>`}</tbody></table></div>`;
 
-  const studentPanel = (k, i) => {
+  // One tab per student. A student with several subjects gets a section per subject inside it.
+  const subjectBlock = (k, many) => {
     const n = doneCount(k.id);
     const trial = isOwn(k) && k.trial_status === "trial"
       ? `<p class="note">Trial: ${Math.min(n, 3)} of 3 classes taken.</p>
@@ -463,10 +493,18 @@ async function myView(me, own, asStudent) {
          <button class="small" data-trial="ended" data-id="${k.id}" type="button">Stop after the trial</button></div>` : "";
     const rate = isOwn(k) ? `<p style="margin:10px 0 0">Rate: <b>${k.rate_cents != null ? money(k.rate_cents) + " per hour" : "set after the trial"}</b> <span class="note">· charged at the booked class length</span></p>` : "";
     const group = isOwn(k) ? `<label class="check"><input type="checkbox" data-group="${k.id}" ${k.open_to_group ? "checked" : ""}> Open to a small group (2–3 students) if we can match one</label>` : "";
-    return `<div class="panel" id="m-s${i}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">${esc(k.first_name)} <span class="note" style="font-size:16px;font-weight:500">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></h2>${pill(k.trial_status)}</div>
-      <p class="note">${k.tutor_id ? "Tutor matched" : "We'll match a tutor soon"}${isOwn(k) && k.student_email ? ` · ${esc(k.first_name)} can sign in with ${esc(k.student_email)}` : ""}</p>${rate}${trial}${group}
+    const head = many ? `<div class="subhead"><h3>${esc(k.subject || "")}${TN[k.tutor_id] ? ` <span class="with">with ${esc(TN[k.tutor_id])}</span>` : ""}</h3>${pill(k.trial_status)}</div>` : "";
+    return `<div class="${many ? "subblock" : ""}"${many ? ` data-segblock="${learnerKey(k)}" data-sub="${esc(k.subject || "")}"` : ""}>${head}${rate}${trial}${group}
       ${slotsHtml(k, sf.slots, false)}${filesHtml(k, sf.files, me)}
       <h3 style="margin:26px 0 8px">Classes</h3>${classTable(mine.filter((c) => c.student_id === k.id), false)}</div>`;
+  };
+  const studentPanel = (rows, i) => {
+    const k = rows[0], many = rows.length > 1;
+    const login = isOwn(k) && rows.find((r) => r.student_email);
+    return `<div class="panel" id="m-s${i}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">${esc(k.first_name)} <span class="note" style="font-size:16px;font-weight:500">${esc(k.grade || "")}</span></h2>${many ? "" : pill(k.trial_status)}</div>
+      <p class="subline">${subjectLine(rows, (id) => TN[id])}</p>${login ? `<p class="note" style="margin-top:-4px">${esc(k.first_name)} can sign in with ${esc(login.student_email)}</p>` : ""}
+      ${many ? `<div class="seg" role="tablist">${rows.map((r) => `<button type="button" role="tab" data-seg="${esc(learnerKey(k))}" data-sub="${esc(r.subject || "")}">${esc(r.subject || "")}</button>`).join("")}</div>` : ""}
+      ${rows.map((r) => subjectBlock(r, many)).join("")}</div>`;
   };
 
   const payRows = (pays || []).map((p) => `<tr><td>${new Date(p.created_at).toLocaleDateString("en-CA")}</td><td>${money(p.amount_cents)} CAD</td><td>${pill(p.status)}${p.failure_message ? `<div class="note">${esc(p.failure_message)}</div>` : ""}</td></tr>`).join("");
@@ -474,18 +512,18 @@ async function myView(me, own, asStudent) {
   hero("My Avelon", `Hi ${esc(first)}<span class="star">.</span>`, holder ? "Class times, notes, confirmations and payments in one place." : "Your class times, Google Meet links, notes and files.");
 
   const SECTIONS = [["m-overview", "Overview"], ["m-schedule", "Schedule"]]
-    .concat(kids.map((k, i) => [`m-s${i}`, esc(k.first_name)]))
+    .concat(learners.map((g, i) => [`m-s${i}`, esc(g[0].first_name)]))
     .concat([["m-classes", "All classes", pendingCount]])
     .concat(holder ? [["m-payments", "Payments"], ["m-details", "Your details"], ["m-add", "Add a student"]] : []);
   const T = [["m-schedule", nextClass(sf.slots, byId), "next class", false, true], ["m-classes", pendingCount, "classes to confirm", pendingCount > 0]];
-  if (holder) T.push([kids.length ? "m-s0" : "m-add", kids.length, kids.length === 1 ? "student" : "students"], ["m-payments", me.card_last4 ? "•••• " + esc(me.card_last4) : "None", "card on file", !me.card_last4, true]);
+  if (holder) T.push([kids.length ? "m-s0" : "m-add", learners.length, learners.length === 1 ? "student" : "students"], ["m-payments", me.card_last4 ? "•••• " + esc(me.card_last4) : "None", "card on file", !me.card_last4, true]);
 
   app.innerHTML = `
     ${flash}
     ${dash(SECTIONS, `
     <div class="panel" id="m-overview"><h2>Overview</h2>${tiles(T)}${holder && !kids.length ? `<p class="note" style="margin-top:18px">Add a student to get started.</p><button class="primary" type="button" data-tab="m-add">Add a student</button>` : ""}</div>
     <div class="panel" id="m-schedule"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, byId, { days: 14, empty: "No classes scheduled yet. Once a tutor is matched, class times and Google Meet links appear here." })}</div>
-    ${kids.map(studentPanel).join("")}
+    ${learners.map(studentPanel).join("")}
     <div class="panel" id="m-classes"><h2>All classes</h2><p class="note">Classes are charged at the booked length. Classes not confirmed or flagged within 24 hours are confirmed automatically.</p>${classTable(mine, kids.length > 1)}</div>
     ${holder ? `
     <div class="panel" id="m-payments"><h2>Payment card</h2>${card}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
@@ -536,6 +574,14 @@ async function myView(me, own, asStudent) {
     try { await rpc("review_session", { p_session: b.dataset.flag, p_action: "flag", p_reason: r }); show("Thanks for letting us know. We'll look into it and won't charge this class until it's sorted."); }
     catch (err) { show(err.message, "bad"); }
   });
+  // Subject switcher inside a student's tab (only when they take more than one subject).
+  const pickSeg = (key, sub) => {
+    segPick[key] = sub;
+    app.querySelectorAll("[data-segblock]").forEach((b) => { if (b.dataset.segblock === key) b.classList.toggle("hidden", b.dataset.sub !== sub); });
+    app.querySelectorAll("[data-seg]").forEach((b) => { if (b.dataset.seg === key) b.classList.toggle("on", b.dataset.sub === sub); });
+  };
+  for (const g of learners) if (g.length > 1) { const key = learnerKey(g[0]); pickSeg(key, g.some((r) => r.subject === segPick[key]) ? segPick[key] : g[0].subject || ""); }
+  app.querySelectorAll("[data-seg]").forEach((b) => b.onclick = () => pickSeg(b.dataset.seg, b.dataset.sub));
   bindShared(me);
   bindDash("family", "m-overview");
   if (justSaved && !me.card_last4) { justSaved = false; setTimeout(route, 4000); }
@@ -634,19 +680,32 @@ async function adminView(me) {
   const groups = {};
   for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
-  const kidRows = (kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)).map((k) => `<tr data-kid="${k.id}"${k.active ? "" : ' style="opacity:.6"'}>
-    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="gs">${esc(k.grade || "")} · ${esc(k.subject || "")}</div><div class="note">Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)} <button class="lk" type="button" data-resend="${esc(k.student_email)}" style="padding:2px 6px">Send login code</button>` : ""}</div></td>
+  const kidGroups = groupLearners((kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)));
+  const subjOpts = (taken, sel) => SUBJECTS.filter((x) => !taken.includes(x)).map((x) => `<option ${x === sel ? "selected" : ""}>${x}</option>`).join("");
+  const kidRows = kidGroups.map((g, gi) => {
+    const k0 = g[0], par = P[k0.parent_id], em = g.find((r) => r.student_email)?.student_email;
+    const rows = g.map((k, i) => `<tr data-kid="${k.id}" class="${i < g.length - 1 ? "more" : ""}${i ? " cont" : ""}"${k.active ? "" : ' style="opacity:.6"'}>
+    <td>${i === 0 ? `<b>${esc(k.first_name)}</b> <span class="note">${esc(k.grade || "")}</span>` : ""}<div class="gs">${esc(k.subject || "")}${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}</div>${i === 0 ? `<div class="note">Parent: ${who(par)}${par?.card_last4 ? " · card ✓" : " · no card"}${em ? `<br>Student email: ${esc(em)} <button class="lk" type="button" data-resend="${esc(em)}" style="padding:2px 6px">Send login code</button>` : ""}<br>${g.length < SUBJECTS.length ? `<button class="lk" type="button" data-addsub="${gi}" style="padding:2px 6px;margin-left:-6px">+ Add subject</button>` : ""}</div>` : ""}</td>
     <td><select name="tutor" class="fit"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" class="fit" style="width:72px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial" class="fit" style="min-width:122px">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
     <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
-    <td><div class="acts"><span class="saved" data-savedmark></span><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name)}" type="button">Remove</button></div></td></tr>`).join("");
+    <td><div class="acts"><span class="saved" data-savedmark></span><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name + (g.length > 1 ? " (" + (k.subject || "") + ")" : ""))}" type="button">Remove</button></div></td></tr>`).join("");
+    const taken = g.map((r) => r.subject);
+    const add = g.length < SUBJECTS.length ? `<tr class="addsub hidden" data-addrow="${gi}"><td colspan="6"><form class="acts" data-addsubf="${gi}" data-parent="${esc(par?.email || "")}" data-pname="${esc(par?.full_name || "")}" data-first="${esc(k0.first_name)}" data-grade="${esc(k0.grade || "")}" data-semail="${esc(em || "")}">
+      <b style="margin-right:4px">Add a subject for ${esc(k0.first_name)}:</b>
+      <select name="subject" aria-label="Subject">${subjOpts(taken)}</select>
+      <select name="tutor_id" aria-label="Tutor"><option value="">Tutor: not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select>
+      <input name="rate" type="number" min="0" step="0.5" placeholder="$/hr" aria-label="Rate" style="width:84px">
+      <button class="small primary" type="submit" style="min-height:34px;padding:4px 16px;font-size:14px">Add</button><button class="lk" type="button" data-addcancel="${gi}">Cancel</button></form></td></tr>` : "";
+    return rows + add;
+  }).join("");
 
   // Parents and tutors
   const parentRows = parents.slice().sort((x, y) => (x.archived_at ? 1 : 0) - (y.archived_at ? 1 : 0)).map((p) => {
     const ch = (kids || []).filter((k) => k.parent_id === p.id);
     return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="ed" type="button" title="Edit name" aria-label="Edit name" data-rename="${p.id}" data-name="${esc(p.full_name || "")}">✎</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
-      <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td><div class="acts">${p.archived_at
+      <td>${[...new Set(ch.map((k) => k.first_name))].map(esc).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td><div class="acts">${p.archived_at
         ? `<span class="pill">Removed</span><button class="lk" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button>`
         : `${roleSel(p)}<button class="lk" type="button" data-resend="${esc(p.email)}">Send login code</button><button class="lk red" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</div></td></tr>`;
   }).join("");
@@ -682,7 +741,7 @@ async function adminView(me) {
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email. After your call, press <b>Set up family</b> to create their account and student. Booked or closed requests can be removed.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th><th></th></tr></thead><tbody>${reqRows || `<tr><td colspan="5" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="students"><h2>Students (${(kids || []).length})</h2><p class="note">Set the tutor and hourly price for each student. Changes save as soon as you make them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
+    <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Set the tutor and hourly price for each student. Changes save as soon as you make them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
       <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="schedules"><h2>Schedules &amp; files</h2><p class="note">Set each student's weekly class time and Google Meet link. The family, the student and the tutor all see it.</p>
@@ -760,6 +819,19 @@ async function adminView(me) {
       } catch (err) { mark.textContent = "Not saved"; mark.className = "saved bad"; show(err.message, "bad"); }
     };
     ["tutor", "rate", "trial", "active"].forEach((n) => g(n).addEventListener("change", save));
+  });
+  app.querySelectorAll("[data-addsub]").forEach((b) => b.onclick = () => {
+    const row = app.querySelector(`[data-addrow="${b.dataset.addsub}"]`); row.classList.remove("hidden"); row.querySelector("select").focus();
+  });
+  app.querySelectorAll("[data-addcancel]").forEach((b) => b.onclick = () => app.querySelector(`[data-addrow="${b.dataset.addcancel}"]`).classList.add("hidden"));
+  app.querySelectorAll("[data-addsubf]").forEach((f) => f.onsubmit = async (e) => {
+    e.preventDefault(); const d = f.dataset, v = Object.fromEntries(new FormData(f)), btn = f.querySelector("[type=submit]");
+    if (!d.parent) return show("This student's parent has no email on file.", "bad");
+    btn.disabled = true;
+    try {
+      await call("add-person", { kind: "family", email: d.parent, full_name: d.pname || d.parent.split("@")[0], student_first_name: d.first, grade: d.grade, subject: v.subject, student_email: d.semail, tutor_id: v.tutor_id, rate: v.rate, send_email: false });
+      show(`${v.subject} added for ${d.first}. Set the weekly time in Schedules & files.`);
+    } catch (err) { btn.disabled = false; show(err.message, "bad"); }
   });
   app.querySelectorAll("[data-req]").forEach((sel) => sel.onchange = async () => {
     const { error } = await sb.from("trial_requests").update({ status: sel.value }).eq("id", sel.dataset.req);
