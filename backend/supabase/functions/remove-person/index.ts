@@ -51,6 +51,10 @@ Deno.serve(async (req) => {
       if (!p) return json({ error: "Family not found." }, 404);
       if (p.role !== "parent") return json({ error: "Only family accounts can be removed here." }, 400);
       const name = p.full_name || p.email;
+      // A student's own login is not a family: removing it would lock the student out. Remove the student in Students instead.
+      const { count: ownKids } = await db.from("students").select("id", { count: "exact", head: true }).eq("parent_id", id);
+      const { count: asStudent } = await db.from("students").select("id", { count: "exact", head: true }).ilike("student_email", p.email);
+      if (!ownKids && asStudent && action !== "restore") return json({ error: `${p.email} is a student's own login, not a family. To remove the student, use Remove in Students.` }, 400);
 
       if (action === "restore") {
         await db.auth.admin.updateUserById(id, { ban_duration: "none" });

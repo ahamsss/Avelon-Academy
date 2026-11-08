@@ -785,7 +785,9 @@ async function adminView(me) {
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
   const K = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const tutors = (people || []).filter((p) => p.role === "tutor");
-  const parents = (people || []).filter((p) => p.role === "parent");
+  // Student logins have role "parent" in the database but aren't families: keep them out of Parents.
+  const studentEmails = new Set((kids || []).map((k) => (k.student_email || "").toLowerCase()).filter(Boolean));
+  const parents = (people || []).filter((p) => p.role === "parent" && !((kids || []).every((k) => k.parent_id !== p.id) && studentEmails.has((p.email || "").toLowerCase())));
   const admins = (people || []).filter((p) => p.role === "admin");
   const open = (classes || []).filter((c) => c.status === "flagged" || c.status === "pending");
   const who = (p) => esc(p?.full_name || p?.email || "");
@@ -1046,7 +1048,12 @@ async function route() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return loginView();
   const { data: me, error } = await sb.from("profiles").select("*").eq("id", session.user.id).single();
-  if (error || !me) { app.innerHTML = `<div class="msg bad">Couldn't load your account. Try signing out and in again.</div>`; return; }
+  if (error || !me) {
+    // The saved sign-in points to an account that no longer exists (or can't be read): sign out and start fresh.
+    await sb.auth.signOut();
+    flash = `<div class="msg info">Your sign-in expired. Please sign in again with your email.</div>`;
+    return loginView();
+  }
   document.getElementById("who").textContent = me.email;
   const so = document.getElementById("signout"); so.classList.remove("hidden");
   so.onclick = async () => { await sb.auth.signOut(); loginView(); };
