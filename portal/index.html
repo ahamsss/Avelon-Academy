@@ -68,6 +68,8 @@ button.ed{min-height:0;padding:1px 5px;margin-left:2px;border:0;border-radius:6p
 button.ed:hover{background:var(--soft);color:var(--navy)}
 .acts{display:flex;gap:2px;align-items:center;justify-content:flex-end;flex-wrap:nowrap}
 #students .table td:first-child{min-width:175px}
+.gs{font-size:14px;font-weight:600;color:var(--ink);margin-top:2px}
+.saved{font-size:13px;font-weight:600;color:var(--muted);min-width:62px;text-align:right;margin-right:4px}.saved.ok{color:var(--ok)}.saved.bad{color:var(--bad)}
 .acts select{width:auto;padding:5px 10px;font-size:13px;border-radius:8px;margin-right:4px}
 .table select.fit{min-width:140px;padding:8px 10px}.table input.fit{padding:8px 10px}
 button:disabled{opacity:.5;cursor:default}
@@ -633,12 +635,12 @@ async function adminView(me) {
   for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
   const kidRows = (kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)).map((k) => `<tr data-kid="${k.id}"${k.active ? "" : ' style="opacity:.6"'}>
-    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)} <button class="lk" type="button" data-resend="${esc(k.student_email)}" style="padding:2px 6px">Send login code</button>` : ""}</div></td>
+    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="gs">${esc(k.grade || "")} · ${esc(k.subject || "")}</div><div class="note">Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)} <button class="lk" type="button" data-resend="${esc(k.student_email)}" style="padding:2px 6px">Send login code</button>` : ""}</div></td>
     <td><select name="tutor" class="fit"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" class="fit" style="width:72px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial" class="fit" style="min-width:122px">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
     <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
-    <td><div class="acts"><button class="small" data-savekid type="button" style="min-height:32px;padding:4px 14px;font-size:13px">Save</button><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name)}" type="button">Remove</button></div></td></tr>`).join("");
+    <td><div class="acts"><span class="saved" data-savedmark></span><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name)}" type="button">Remove</button></div></td></tr>`).join("");
 
   // Parents and tutors
   const parentRows = parents.slice().sort((x, y) => (x.archived_at ? 1 : 0) - (y.archived_at ? 1 : 0)).map((p) => {
@@ -680,7 +682,7 @@ async function adminView(me) {
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email. After your call, press <b>Set up family</b> to create their account and student. Booked or closed requests can be removed.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th><th></th></tr></thead><tbody>${reqRows || `<tr><td colspan="5" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="students"><h2>Students (${(kids || []).length})</h2><p class="note">Set the tutor and hourly price for each student. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
+    <div class="panel" id="students"><h2>Students (${(kids || []).length})</h2><p class="note">Set the tutor and hourly price for each student. Changes save as soon as you make them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
       <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="schedules"><h2>Schedules &amp; files</h2><p class="note">Set each student's weekly class time and Google Meet link. The family, the student and the tutor all see it.</p>
@@ -745,11 +747,19 @@ async function adminView(me) {
     try { await rpc("admin_set_session", { p_session: b.dataset.id, p_status: b.dataset.set }); show("Updated."); }
     catch (err) { show(err.message, "bad"); }
   });
-  app.querySelectorAll("[data-savekid]").forEach((b) => b.onclick = async () => {
-    const tr = b.closest("tr"); const g = (n) => tr.querySelector(`[name=${n}]`);
-    const rate = g("rate").value === "" ? null : Math.round(Number(g("rate").value) * 100);
-    try { await rpc("admin_update_student", { p_student: tr.dataset.kid, p_tutor: g("tutor").value || null, p_rate_cents: rate, p_trial_status: g("trial").value, p_active: g("active").checked }); show("Student saved."); }
-    catch (err) { show(err.message, "bad"); }
+  // Student rows save themselves as soon as a tutor, rate, trial or active box changes.
+  app.querySelectorAll("tr[data-kid]").forEach((tr) => {
+    const g = (n) => tr.querySelector(`[name=${n}]`); const mark = tr.querySelector("[data-savedmark]");
+    const save = async () => {
+      const rate = g("rate").value === "" ? null : Math.round(Number(g("rate").value) * 100);
+      mark.textContent = "Saving…"; mark.className = "saved";
+      try {
+        await rpc("admin_update_student", { p_student: tr.dataset.kid, p_tutor: g("tutor").value || null, p_rate_cents: rate, p_trial_status: g("trial").value, p_active: g("active").checked });
+        mark.textContent = "✓ Saved"; mark.className = "saved ok";
+        clearTimeout(mark._t); mark._t = setTimeout(() => { mark.textContent = ""; }, 2500);
+      } catch (err) { mark.textContent = "Not saved"; mark.className = "saved bad"; show(err.message, "bad"); }
+    };
+    ["tutor", "rate", "trial", "active"].forEach((n) => g(n).addEventListener("change", save));
   });
   app.querySelectorAll("[data-req]").forEach((sel) => sel.onchange = async () => {
     const { error } = await sb.from("trial_requests").update({ status: sel.value }).eq("id", sel.dataset.req);
