@@ -37,13 +37,16 @@ async function makeCode(email: string) {
   const code = String(n).padStart(6, "0");
   const pepper = Deno.env.get("CRON_SECRET") ?? "avelon";
   await db.from("invite_codes").delete().eq("email", email).is("used_at", null);
-  await db.from("invite_codes").insert({ email, code_hash: await sha256(`${email}:${code}:${pepper}`), expires_at: new Date(Date.now() + 24 * 3600_000).toISOString() });
+  const { error } = await db.from("invite_codes").insert({ email, code_hash: await sha256(`${email}:${code}:${pepper}`), expires_at: new Date(Date.now() + 24 * 3600_000).toISOString() });
+  if (error) throw new Error("Couldn't save the sign-in code: " + error.message);
   return code;
 }
 
-function inviteEmail(first: string, kind: "tutor" | "family" | "student", email: string, code: string, student?: string) {
-  const title = kind === "tutor" ? "Welcome to the team" : "Your account is ready";
-  const lines = kind === "tutor"
+function inviteEmail(first: string, kind: "tutor" | "family" | "student", email: string, code: string, student?: string, resend = false) {
+  const title = resend ? "Your sign-in code" : kind === "tutor" ? "Welcome to the team" : "Your account is ready";
+  const lines = resend
+    ? ["Here's a new code to sign in to your Avelon account."]
+    : kind === "tutor"
     ? ["You're now set up as an Avelon tutor. Once you log in, you'll see the students you're matched with, their weekly class times and Google Meet links, and the place to log each class right after it ends."]
     : kind === "student"
     ? ["Your parent or guardian set up your Avelon account. Once you log in, you'll see your class times and Google Meet links, plus your notes, homework and files."]
@@ -51,7 +54,7 @@ function inviteEmail(first: string, kind: "tutor" | "family" | "student", email:
   const how = "Press <b>Log in</b> below and type in the code above. Or go to avelonacademy.ca, click <b>Log in</b> at the top right, then <b>I have a code</b>. There's no password to remember.";
   const codeBox = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:4px 0 22px"><tr><td style="padding:20px 22px;text-align:center">
       <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:8px">Your sign-in code</div>
-      <div style="font:700 34px/1.2 'Courier New',monospace;letter-spacing:8px;color:#0B0D12">${code.slice(0, 3)} ${code.slice(3)}</div>
+      <div style="font:700 34px/1.2 'Courier New',monospace;letter-spacing:6px;color:#0B0D12">${code}</div>
       <div style="font:13px/1.5 Arial,sans-serif;color:#5A5F6E;margin-top:8px">Works once, for the next 24 hours. After that, use "Email me a sign-in code" on the login page.</div></td></tr></table>`;
   const loginUrl = `${SITE}/portal/?code=1&email=${encodeURIComponent(email)}`;
   const p = (t: string) => `<p style="font:16px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">${t}</p>`;
@@ -87,6 +90,21 @@ Deno.serve(async (req) => {
     if (me?.role !== "admin") return json({ error: "Admins only." }, 403);
 
     const b = await req.json();
+
+    // Resend a 24-hour sign-in code to someone already set up (family, tutor or student email).
+    if (b.kind === "resend") {
+      const em = String(b.email ?? "").trim().toLowerCase();
+      if (!EMAIL_RE.test(em)) return json({ error: "Please enter a valid email." }, 400);
+      const { data: pr } = await db.from("profiles").select("role, full_name").eq("email", em).maybeSingle();
+      const { data: stu } = await db.from("students").select("first_name").eq("student_email", em).limit(1).maybeSingle();
+      if (!pr && !stu) return json({ error: "No one with that email is set up yet." }, 404);
+      const k: "tutor" | "family" | "student" = pr?.role === "tutor" ? "tutor" : (!pr || pr.role === "parent") && stu ? "student" : "family";
+      const first = (k === "student" ? stu?.first_name : pr?.full_name?.split(" ")[0]) || "";
+      const m = inviteEmail(first, k, em, await makeCode(em), undefined, true);
+      await sendEmail(em, "Your Avelon Academy sign-in code", m.html, m.text);
+      return json({ ok: true });
+    }
+
     const kind = b.kind === "tutor" ? "tutor" : b.kind === "family" ? "family" : null;
     const email = String(b.email ?? "").trim().toLowerCase();
     const full_name = String(b.full_name ?? "").trim().slice(0, 100);
@@ -146,6 +164,6 @@ Deno.serve(async (req) => {
     return json({ ok: true, created });
   } catch (e) {
     console.error(e);
-    return json({ error: "Something went wrong. Please try again." }, 500);
+    return json({ error: (e as Error)?.message?.startsWith("Couldn't") ? (e as Error).message : "Something went wrong. Please try again." }, 500);
   }
 });

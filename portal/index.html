@@ -621,7 +621,7 @@ async function adminView(me) {
   for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
   const kidRows = (kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)).map((k) => `<tr data-kid="${k.id}"${k.active ? "" : ' style="opacity:.6"'}>
-    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)}` : ""}</div></td>
+    <td><b>${esc(k.first_name)}</b>${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}<div class="note">${esc(k.grade || "")} · ${esc(k.subject || "")}<br>Parent: ${who(P[k.parent_id])}${P[k.parent_id]?.card_last4 ? " · card ✓" : " · no card"}${k.student_email ? `<br>Student email: ${esc(k.student_email)} <button class="small" type="button" data-resend="${esc(k.student_email)}" style="padding:2px 10px;font-size:12px">Send login code</button>` : ""}</div></td>
     <td><select name="tutor"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" style="width:96px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
     <td><select name="trial">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
@@ -634,12 +634,12 @@ async function adminView(me) {
     return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="small" type="button" data-rename="${p.id}" data-name="${esc(p.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
       <td>${ch.map((k) => esc(k.first_name)).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td style="white-space:nowrap">${p.archived_at
         ? `<span class="pill">Removed</span> <button class="small" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button>`
-        : `${roleSel(p)} <button class="small" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</td></tr>`;
+        : `${roleSel(p)} <button class="small" type="button" data-resend="${esc(p.email)}">Send login code</button> <button class="small" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</td></tr>`;
   }).join("");
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
     const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
     return `<tr><td><b>${esc(t.full_name || "")}</b> <button class="small" type="button" data-rename="${t.id}" data-name="${esc(t.full_name || "")}" style="padding:2px 10px;font-size:12px">Edit name</button><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
-      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td>${t.role === "tutor" ? `<button class="small" type="button" data-untutor="${t.id}" data-name="${esc(t.full_name || t.email)}">Remove tutor access</button>` : ""}</td></tr>`;
+      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td style="white-space:nowrap"><button class="small" type="button" data-resend="${esc(t.email)}">Send login code</button> ${t.role === "tutor" ? `<button class="small" type="button" data-untutor="${t.id}" data-name="${esc(t.full_name || t.email)}">Remove tutor access</button>` : ""}</td></tr>`;
   }).join("");
 
   const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${who(P[c.parent_id])}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
@@ -762,6 +762,12 @@ async function adminView(me) {
   }; };
   addPerson("addfam", "family"); addPerson("addtutor", "tutor");
   const removeMsg = (r) => r.result === "deleted" ? `${r.name} was deleted.` : r.result === "archived" ? `${r.name} was removed. Their class and payment records are kept.` : `${r.name} was restored. Turn their students back on in Students.`;
+  app.querySelectorAll("[data-resend]").forEach((b) => b.onclick = async () => {
+    if (!confirm(`Email a new 24-hour sign-in code to ${b.dataset.resend}?`)) return;
+    b.disabled = true;
+    try { await call("add-person", { kind: "resend", email: b.dataset.resend }); show(`Sign-in code sent to ${b.dataset.resend}.`); }
+    catch (err) { b.disabled = false; show(err.message, "bad"); }
+  });
   app.querySelectorAll("[data-rmkid]").forEach((b) => b.onclick = async () => {
     if (!confirm(`Remove ${b.dataset.name}?\n\nTheir weekly class times are cleared and their tutor can no longer log classes. If they never had a class, they are deleted completely; otherwise their class and payment records are kept.`)) return;
     try { show(removeMsg(await call("remove-person", { kind: "student", id: b.dataset.rmkid }))); } catch (err) { show(err.message, "bad"); }
