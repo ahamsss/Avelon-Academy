@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     const kind = b.kind === "tutor" ? "tutor" : b.kind === "family" ? "family" : null;
     const email = String(b.email ?? "").trim().toLowerCase();
     const full_name = String(b.full_name ?? "").trim().slice(0, 100);
+    const phone = String(b.phone ?? "").trim().replace(/\s+/g, " ").slice(0, 30);
     if (!kind) return json({ error: "Unknown type." }, 400);
     if (!EMAIL_RE.test(email) || email.length > 200) return json({ error: "Please enter a valid email." }, 400);
     if (!full_name) return json({ error: "Please enter a name." }, 400);
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
     if (prof.role === "admin" && kind === "tutor") { /* admin can also tutor; keep admin */ }
     else if (kind === "tutor" && prof.role !== "tutor") await db.from("profiles").update({ role: "tutor" }).eq("id", prof.id);
     if (!prof.full_name) await db.from("profiles").update({ full_name }).eq("id", prof.id);
+    if (phone) await db.from("profiles").update({ phone }).eq("id", prof.id);
 
     if (kind === "family") {
       const { error } = await db.from("students").insert({ parent_id: prof.id, ...st });

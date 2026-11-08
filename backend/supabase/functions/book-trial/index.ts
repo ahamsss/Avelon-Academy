@@ -42,7 +42,7 @@ function parentEmail(first: string, grade: string, subject: string) {
     ? "On the call we'll work out which subject will help most, then match a tutor and set a regular weekly time that works around school."
     : `We match you with a ${subject} tutor and set a regular weekly time that works around school.`;
   const steps = [
-    ["A quick call", "Within one day, we'll email you to set up a free 15-minute call. We'll talk about the class, any tests coming up and where things feel stuck."],
+    ["A quick call", "Within one day, we'll call or email you to set up a free 15-minute call. We'll talk about the class, any tests coming up and where things feel stuck."],
     ["The right tutor", tutorLine],
     ["Three trial classes", "Start with 3 live online classes. If it isn't the right fit, you walk away and pay nothing. If you'd like to continue, class 1 is free and classes 2 and 3 go on your first weekly bill."],
   ];
@@ -114,13 +114,13 @@ ${SITE}`;
 }
 
 // ---------- the note to Avelon ----------
-function adminEmail(r: { parent_name: string; email: string; grade: string; subject: string }) {
+function adminEmail(r: { parent_name: string; email: string; phone: string; grade: string; subject: string }) {
   const row = (k: string, v: string) => `<tr><td style="padding:6px 18px 6px 0;color:#5A5F6E">${k}</td><td style="padding:6px 0"><b>${v}</b></td></tr>`;
   const html = `<div style="font:15px/1.5 Arial,sans-serif;color:#0B0D12;max-width:520px">
     <p style="font-size:18px;margin:0 0 14px"><b>New trial request</b></p>
-    <table cellpadding="0" cellspacing="0">${row("Parent/student", esc(r.parent_name))}${row("Email", `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`)}${row("Grade", esc(r.grade))}${row("Subject", esc(r.subject))}</table>
+    <table cellpadding="0" cellspacing="0">${row("Parent/student", esc(r.parent_name))}${row("Email", `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`)}${row("Phone", `<a href="tel:${esc(r.phone.replace(/[^\d+]/g, ""))}">${esc(r.phone)}</a>`)}${row("Grade", esc(r.grade))}${row("Subject", esc(r.subject))}</table>
     <p style="margin:18px 0 0;color:#5A5F6E">They've been sent the welcome email. Hit Reply to answer them directly, or see all requests in the <a href="${SITE}/portal/">portal</a>.</p></div>`;
-  const text = `New trial request\nParent/student: ${r.parent_name}\nEmail: ${r.email}\nGrade: ${r.grade}\nSubject: ${r.subject}\n\nReply to this email to answer them directly.`;
+  const text = `New trial request\nParent/student: ${r.parent_name}\nEmail: ${r.email}\nPhone: ${r.phone}\nGrade: ${r.grade}\nSubject: ${r.subject}\n\nReply to this email to answer them directly.`;
   return { html, text };
 }
 
@@ -134,10 +134,13 @@ Deno.serve(async (req) => {
 
     const parent_name = String(b.parent ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
     const email = String(b.email ?? "").trim().toLowerCase().slice(0, 254);
+    const phone = String(b.phone ?? "").trim().replace(/\s+/g, " ").slice(0, 30);
     const grade = String(b.grade ?? "");
     const subject = String(b.subject ?? "");
     if (!parent_name) return json({ error: "Please enter your name." }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ error: "Please enter a valid email address." }, 400);
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 15 || /[^\d\s()+.\-]/.test(phone)) return json({ error: "Please enter a phone number we can call, with area code." }, 400);
     if (!GRADES.includes(grade)) return json({ error: "Please choose a grade." }, 400);
     if (!SUBJECTS.includes(subject)) return json({ error: "Please choose a subject." }, 400);
 
@@ -155,7 +158,7 @@ Deno.serve(async (req) => {
       if ((count ?? 0) >= 5) return json({ error: "Too many requests. Please email us at " + ADMIN + "." }, 429);
     }
 
-    const row = { parent_name, email, grade, subject, ip_hash };
+    const row = { parent_name, email, phone, grade, subject, ip_hash };
     const { error } = await db.from("trial_requests").insert(row);
     if (error) { console.error(error); return json({ error: "Something went wrong. Please email us at " + ADMIN + "." }, 500); }
 

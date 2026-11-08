@@ -180,6 +180,7 @@ form.book input,form.book select{font:inherit;font-weight:400;padding:15px 16px;
 form.book input:focus,form.book select:focus{outline:2px solid var(--blue-light);outline-offset:1px}
 form.book .full{grid-column:1/-1;justify-self:center;margin-top:10px}
 form.book .wide{grid-column:1/-1}
+form.book .wide{grid-column:1/-1}
 form.book button{font:inherit;cursor:pointer}
 
 /* teach */
@@ -454,8 +455,9 @@ Avelon Academy
 <p class="reveal d1">Tell us about your child and we'll set up a 15-minute call. We reply within one day.</p>
 <form class="book reveal d2" id="book-form" action="mailto:contact@avelonacademy.ca?subject=Trial%20class%20request" method="post" enctype="text/plain" novalidate>
 <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"><label>Company<input type="text" name="company" tabindex="-1" autocomplete="off"></label></div>
-<label>Parent/Student name<input type="text" name="parent" required autocomplete="name"></label>
+<label class="wide">Parent/Student name<input type="text" name="parent" required autocomplete="name"></label>
 <label>Email<input type="email" name="email" required autocomplete="email"></label>
+<label>Phone<input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="e.g. 780 555 0123"></label>
 <label>Grade<select name="grade" required><option value="" disabled selected>Choose grade</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option></select></label>
 <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option><option>Not sure yet</option></select></label>
 <p class="full" style="margin:0;font-size:13px;color:#a9b3c7;text-align:center;font-weight:400">By sending this request you agree to our <a href="terms.html" style="color:#fff">Terms</a> and <a href="privacy.html" style="color:#fff">Privacy Policy</a>.</p>
@@ -581,10 +583,12 @@ Avelon Academy
   function fail(m){ err.innerHTML = m; err.style.display = 'block'; }
   f.addEventListener('submit', function(e){
     e.preventDefault(); err.style.display = 'none';
-    var d = { parent: f.parent.value.trim(), email: f.email.value.trim(), grade: f.grade.value, subject: f.subject.value,
+    var d = { parent: f.parent.value.trim(), email: f.email.value.trim(), phone: f.phone.value.trim(), grade: f.grade.value, subject: f.subject.value,
               company: f.company.value, elapsed: Date.now() - t0 };
     if (!d.parent) return fail('Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) return fail('Please enter a valid email address.');
+    var digits = d.phone.replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 15) return fail('Please enter a phone number we can call, with area code.');
     if (!d.grade) return fail('Please choose your child\u2019s grade.');
     var b = f.querySelector('button[type=submit]'), label = b.innerHTML;
     b.disabled = true; b.innerHTML = 'Sending\u2026';

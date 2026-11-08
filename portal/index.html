@@ -538,7 +538,7 @@ async function adminView(me) {
     sb.from("students").select("*").order("created_at", { ascending: false }),
     sb.from("sessions").select("id, student_id, tutor_id, class_date, minutes, amount_cents, status, flag_reason, trial_number, charge_id").order("class_date", { ascending: false }).limit(200),
     sb.from("charges").select("*").order("created_at", { ascending: false }).limit(50),
-    sb.from("trial_requests").select("id, created_at, parent_name, email, grade, subject, status").order("created_at", { ascending: false }).limit(50),
+    sb.from("trial_requests").select("id, created_at, parent_name, email, phone, grade, subject, status").order("created_at", { ascending: false }).limit(50),
     loadSF(),
     sb.rpc("usage_report"),
   ]);
@@ -555,7 +555,7 @@ async function adminView(me) {
   const roleSel = (p) => `<select data-role="${p.id}" style="width:auto">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select>`;
 
   // Trial requests
-  const reqRows = (reqs || []).map((r) => `<tr><td>${new Date(r.created_at).toLocaleDateString("en-CA")}</td><td><b>${esc(r.parent_name)}</b><div class="note"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></div></td><td>${esc(r.grade)}<div class="note">${esc(r.subject)}</div></td>
+  const reqRows = (reqs || []).map((r) => `<tr><td>${new Date(r.created_at).toLocaleDateString("en-CA")}</td><td><b>${esc(r.parent_name)}</b><div class="note"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a>${r.phone ? `<br><a href="tel:${esc(r.phone.replace(/[^\d+]/g, ""))}">${esc(r.phone)}</a>` : ""}</div></td><td>${esc(r.grade)}<div class="note">${esc(r.subject)}</div></td>
     <td><select data-req="${r.id}" style="width:auto">${["new", "contacted", "booked", "closed"].map((x) => `<option ${x === r.status ? "selected" : ""}>${x}</option>`).join("")}</select></td>
     <td style="white-space:nowrap">${r.status === "booked" || r.status === "closed"
       ? `<button class="small" type="button" data-delreq="${r.id}" title="Remove this request" aria-label="Remove this request">✕ Remove</button>`
@@ -631,12 +631,12 @@ async function adminView(me) {
         <div class="row"><label>Student's email <span class="note" style="font-weight:400">(optional, Grade 6+)</span><input name="student_email" type="email"></label>
           <label>Tutor <span class="note" style="font-weight:400">(optional)</span><select name="tutor_id"><option value="">Not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select></label>
           <label>Rate, $/hour <span class="note" style="font-weight:400">(optional)</span><input name="rate" type="number" min="0" step="0.5"></label></div>
-        <div class="row"><label>Parent/guardian name<input name="full_name" required></label><label>Parent/guardian email <span class="note" style="font-weight:400">(signs in and pays)</span><input name="email" type="email" required></label></div>
+        <div class="row"><label>Parent/guardian name<input name="full_name" required></label><label>Parent/guardian email <span class="note" style="font-weight:400">(signs in and pays)</span><input name="email" type="email" required></label><label>Parent/guardian phone<input name="phone" type="tel"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them that their account is ready</label>
         <button class="primary" type="submit">Add family</button></form>
       <h3 style="margin:34px 0 10px">Add a tutor</h3>
       <form id="addtutor" class="form">
-        <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Their email<input name="email" type="email" required></label></div>
+        <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Their email<input name="email" type="email" required></label><label>Phone <span class="note" style="font-weight:400">(optional)</span><input name="phone" type="tel"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them a welcome with how to sign in</label>
         <button class="primary" type="submit">Add tutor</button></form></div>
     <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. If someone stops tutoring, press <b>Remove tutor access</b> so they can no longer see students.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
@@ -698,7 +698,7 @@ async function adminView(me) {
   });
   app.querySelectorAll("[data-setup]").forEach((b) => b.onclick = () => {
     const r = (reqs || []).find((x) => x.id === b.dataset.setup); const f = document.getElementById("addfam");
-    f.request_id.value = r.id; f.full_name.value = r.parent_name || ""; f.email.value = r.email || "";
+    f.request_id.value = r.id; f.full_name.value = r.parent_name || ""; f.email.value = r.email || ""; f.phone.value = r.phone || "";
     f.student_first_name.value = ""; if (r.grade) f.grade.value = r.grade; if (SUBJECTS.includes(r.subject)) f.subject.value = r.subject;
     app.querySelector('.side [data-tab="people"]').click(); f.student_first_name.focus();
   });
