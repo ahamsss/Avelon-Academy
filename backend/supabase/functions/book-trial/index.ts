@@ -16,7 +16,7 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 const SITE = Deno.env.get("SITE_URL") ?? "https://avelonacademy.ca";
 const ADMIN = Deno.env.get("ADMIN_EMAIL") ?? "contact@avelonacademy.ca";
 
-const GRADES = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
+const GRADES = Array.from({ length: 10 }, (_, i) => `Grade ${i + 1}`);
 const SUBJECTS = ["Math", "Science", "English", "Bangla", "Not sure yet"];
 
 async function sendEmail(to: string, subject: string, html: string, text: string, replyTo: string) {
@@ -77,7 +77,7 @@ function parentEmail(first: string, grade: string, subject: string) {
     <p style="font:16px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 34px">Warmly,<br><b>Sadman</b><br><span style="color:#5A5F6E">Founder, Avelon Academy</span></p>
   </td></tr>
   <tr><td style="background:#0E1528;border-radius:0 0 20px 20px;padding:24px 36px">
-    <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF">Online tutoring across Canada, Grades 1&ndash;12<br>
+    <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF">Online tutoring across Canada, Grades 1&ndash;10<br>
       <a href="${SITE}" style="color:#F3EFE6;text-decoration:none">avelonacademy.ca</a> &nbsp;&middot;&nbsp; <a href="mailto:${ADMIN}" style="color:#F3EFE6;text-decoration:none">${ADMIN}</a></div>
   </td></tr>
   <tr><td style="padding:18px 36px 0;font:12px/1.6 Arial,sans-serif;color:#8A8F9C;text-align:center">

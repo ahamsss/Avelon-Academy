@@ -165,7 +165,7 @@ function hero(kicker, title, lede) { document.getElementById("kicker").innerHTML
 function show(msg, kind = "ok") { flash = `<div class="msg ${kind}">${esc(msg)}</div>`; route(); }
 
 // ---------------- Schedule + files (shared by every view) ----------------
-const SUBJECTS = ["Math", "Science", "English", "Bangla", "Physics", "Chemistry", "Biology"];
+const SUBJECTS = ["Math", "Science", "English", "Bangla"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ZONES = [["America/Vancouver", "Pacific (Vancouver)"], ["America/Edmonton", "Mountain (Edmonton)"], ["America/Regina", "Saskatchewan (Regina)"], ["America/Winnipeg", "Central (Winnipeg)"], ["America/Toronto", "Eastern (Toronto)"], ["America/Halifax", "Atlantic (Halifax)"], ["America/St_Johns", "Newfoundland (St. John's)"], ["Asia/Dhaka", "Bangladesh (Dhaka)"]];
 const MY_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -481,8 +481,8 @@ async function myView(me, own, asStudent) {
     <div class="panel" id="m-add"><h2>Add a student</h2>
       <form id="addkid" class="form">
         <div class="row"><label>First name<input name="first_name" required></label>
-        <label>Grade<select name="grade">${["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"].map((g) => `<option>${g}</option>`).join("")}</select></label>
-        <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option><option>Physics</option><option>Chemistry</option><option>Biology</option></select></label></div>
+        <label>Grade<select name="grade">${["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10"].map((g) => `<option>${g}</option>`).join("")}</select></label>
+        <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option></select></label></div>
         <label>Student's email <span class="note" style="font-weight:400">(optional: lets them sign in to My Avelon to see classes, notes and files)</span><input name="student_email" type="email"></label>
         <button class="primary" type="submit">Add student</button></form></div>` : ""}`)}`;
   flash = "";
@@ -676,7 +676,7 @@ async function adminView(me) {
       <h3 style="margin:22px 0 10px">Add a family</h3>
       <form id="addfam" class="form"><input type="hidden" name="request_id">
         <div class="row"><label>Student's first name<input name="student_first_name" required></label>
-          <label>Grade<select name="grade">${Array.from({ length: 12 }, (_, i) => `<option>Grade ${i + 1}</option>`).join("")}</select></label>
+          <label>Grade<select name="grade">${Array.from({ length: 10 }, (_, i) => `<option>Grade ${i + 1}</option>`).join("")}</select></label>
           <label>Subject<select name="subject">${SUBJECTS.map((x) => `<option>${x}</option>`).join("")}</select></label></div>
         <div class="row"><label>Student's email <span class="note" style="font-weight:400">(optional, Grade 6+)</span><input name="student_email" type="email"></label>
           <label>Tutor <span class="note" style="font-weight:400">(optional)</span><select name="tutor_id"><option value="">Not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select></label>

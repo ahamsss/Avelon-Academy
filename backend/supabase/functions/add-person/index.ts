@@ -14,7 +14,7 @@ const esc = (s: string) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const SITE = Deno.env.get("SITE_URL") ?? "https://avelonacademy.ca";
 const ADMIN = Deno.env.get("ADMIN_EMAIL") ?? "contact@avelonacademy.ca";
-const GRADES = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
+const GRADES = Array.from({ length: 10 }, (_, i) => `Grade ${i + 1}`);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function sendEmail(to: string, subject: string, html: string, text: string) {
