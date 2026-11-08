@@ -73,6 +73,24 @@ button.ed:hover{background:var(--soft);color:var(--navy)}
 .seg{display:inline-flex;flex-wrap:wrap;background:var(--soft);border-radius:999px;padding:4px;gap:4px;margin:12px 0 0}.seg button{min-height:0;border:0;padding:7px 18px;font-size:14px;border-radius:999px;color:var(--ink);background:transparent}.seg button:hover{background:#fff;color:var(--ink)}.seg button.on{background:var(--navy);color:#fff}.subhead{display:flex;justify-content:space-between;align-items:center;gap:10px}.subhead h3{margin:0;font-size:20px}
 .table tr.more td{border-bottom:1px dashed var(--line)}.table tr.cont td{padding-top:8px}
 .addsub td{background:var(--soft)}.addsub .acts{justify-content:flex-start;gap:8px;flex-wrap:wrap}.addsub select{max-width:220px}.addsub select,.addsub input{width:auto;padding:7px 10px;font-size:14px;border-radius:8px}
+.mwrap{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}.mwrap.one{grid-template-columns:1fr}
+@media(max-width:760px){.mwrap{grid-template-columns:1fr}}
+.mlist{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow:auto}
+.mthread{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;min-height:0;padding:11px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:400}
+.mthread:hover{background:var(--soft);color:var(--ink)}.mthread.on{border-color:var(--navy);background:var(--soft)}
+.mthread .mt{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mthread .ms{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mthread .cnt{background:var(--blue-text);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px}
+.mconv{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.mhead{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--soft)}
+.mscroll{padding:16px;max-height:420px;min-height:180px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.mb{max-width:78%;align-self:flex-start;background:var(--soft);border-radius:14px 14px 14px 4px;padding:9px 13px}
+.mb.me{align-self:flex-end;background:var(--navy);color:#fff;border-radius:14px 14px 4px 14px}.mb.me .mh span{color:#C3CBDD}
+.mb.fl{outline:2px solid #F59E0B}
+.mh{font-size:12px;font-weight:700;margin-bottom:3px}.mh span{font-weight:500;color:var(--muted)}
+.mx{font-size:15px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.mfl{font-size:12px;color:var(--warn);margin-top:6px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}.mfl.quiet{justify-content:flex-end;margin-top:2px}.mb.me .mfl .lk{color:#FCA5A5}
+.msend{display:flex;gap:10px;align-items:flex-end;padding:12px;border-top:1px solid var(--line)}.msend textarea{min-height:46px;resize:vertical;flex:1}
+.mnote{padding:0 14px 12px;margin:0;font-size:12.5px}
 .gs{font-size:14px;font-weight:600;color:var(--ink);margin-top:2px}
 .saved{font-size:13px;font-weight:600;color:var(--muted);min-width:62px;text-align:right;margin-right:4px}.saved.ok{color:var(--ok)}.saved.bad{color:var(--bad)}
 .acts select{width:auto;padding:5px 10px;font-size:13px;border-radius:8px;margin-right:4px}
@@ -449,7 +467,7 @@ async function myView(me, own, asStudent) {
     holder ? sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
     loadSF(),
   ]);
-  const { data: tn } = await sb.rpc("my_tutor_names");
+  const [{ data: tn }, M] = await Promise.all([sb.rpc("my_tutor_names"), loadMsgs(me)]);
   const TN = Object.fromEntries((tn || []).map((t) => [t.id, t.first_name]));
   const learners = groupLearners(kids);
   const multi = (k) => learners.some((g) => g.length > 1 && g.includes(k));
@@ -511,7 +529,8 @@ async function myView(me, own, asStudent) {
   const first = holder ? (me.full_name || "there").split(" ")[0] : (kids[0]?.first_name || "there");
   hero("My Avelon", `Hi ${esc(first)}<span class="star">.</span>`, holder ? "Class times, notes, confirmations and payments in one place." : "Your class times, Google Meet links, notes and files.");
 
-  const SECTIONS = [["m-overview", "Overview"], ["m-schedule", "Schedule"]]
+  const threads = kids.map((k) => ({ id: k.id, title: `${k.first_name}${k.subject ? " · " + k.subject : ""}`, sub: k.tutor_id && TN[k.tutor_id] ? `with ${TN[k.tutor_id]}` : "Tutor coming soon" }));
+  const SECTIONS = [["m-overview", "Overview"], ["m-schedule", "Schedule"], ["m-messages", "Messages", unreadAll(M, me, threads)]]
     .concat(learners.map((g, i) => [`m-s${i}`, esc(g[0].first_name)]))
     .concat([["m-classes", "All classes", pendingCount]])
     .concat(holder ? [["m-payments", "Payments"], ["m-details", "Your details"], ["m-add", "Add a student"]] : []);
@@ -523,6 +542,7 @@ async function myView(me, own, asStudent) {
     ${dash(SECTIONS, `
     <div class="panel" id="m-overview"><h2>Overview</h2>${tiles(T)}${holder && !kids.length ? `<p class="note" style="margin-top:18px">Add a student to get started.</p><button class="primary" type="button" data-tab="m-add">Add a student</button>` : ""}</div>
     <div class="panel" id="m-schedule"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, byId, { days: 14, empty: "No classes scheduled yet. Once a tutor is matched, class times and Google Meet links appear here." })}</div>
+    <div class="panel" id="m-messages"><h2>Messages</h2><p class="note">Message ${kids.length ? "your tutor" : "us"} about classes: rescheduling, questions about homework, or anything else.</p><div id="msgbox"></div></div>
     ${learners.map(studentPanel).join("")}
     <div class="panel" id="m-classes"><h2>All classes</h2><p class="note">Classes are charged at the booked length. Classes not confirmed or flagged within 24 hours are confirmed automatically.</p>${classTable(mine, kids.length > 1)}</div>
     ${holder ? `
@@ -584,7 +604,96 @@ async function myView(me, own, asStudent) {
   app.querySelectorAll("[data-seg]").forEach((b) => b.onclick = () => pickSeg(b.dataset.seg, b.dataset.sub));
   bindShared(me);
   bindDash("family", "m-overview");
+  mountMessages("msgbox", threads, me, M, { empty: "Messages open once your student is set up.", onRead: () => msgCount("m-messages", unreadAll(M, me, threads)) });
   if (justSaved && !me.card_last4) { justSaved = false; setTimeout(route, 4000); }
+}
+
+// ---------------- Messages ----------------
+// One conversation per student per subject. The parent, the student (own login), the tutor and Avelon all see it.
+const ROLE_LABEL = { parent: "Parent", student: "Student", tutor: "Tutor", admin: "Avelon" };
+const msgPick = {};
+let msgTimer = null;
+async function loadMsgs(me) {
+  const [{ data: msgs }, { data: reads }] = await Promise.all([
+    sb.from("messages").select("*").order("created_at").limit(1000),
+    sb.from("message_reads").select("student_id, last_read_at").eq("user_id", me.id),
+  ]);
+  return { msgs: msgs || [], reads: Object.fromEntries((reads || []).map((r) => [r.student_id, r.last_read_at])) };
+}
+const unreadIn = (M, me, sid) => M.msgs.filter((m) => m.student_id === sid && m.sender_id !== me.id && (!M.reads[sid] || m.created_at > M.reads[sid])).length;
+const unreadAll = (M, me, threads) => threads.reduce((a, t) => a + unreadIn(M, me, t.id), 0);
+const msgTime = (iso) => new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+// threads: [{ id, title, sub }]. Renders into the element with id boxId and keeps it fresh while open.
+function msgCount(tab, n) {
+  const b = app.querySelector(`.side [data-tab="${tab}"]`); if (!b) return;
+  b.querySelector(".cnt")?.remove(); if (n) b.insertAdjacentHTML("beforeend", `<span class="cnt">${n}</span>`);
+}
+function mountMessages(boxId, threads, me, M, opts = {}) {
+  const box = document.getElementById(boxId); if (!box) return;
+  const admin = me.role === "admin";
+  const last = (id) => { const l = M.msgs.filter((m) => m.student_id === id); return l[l.length - 1]; };
+  const sorted = threads.slice().sort((a, b) => {
+    const fa = admin && M.msgs.some((m) => m.student_id === a.id && m.flagged), fb = admin && M.msgs.some((m) => m.student_id === b.id && m.flagged);
+    if (fa !== fb) return fa ? -1 : 1;
+    return (last(b.id)?.created_at || "").localeCompare(last(a.id)?.created_at || "");
+  });
+  const markRead = async (id) => {
+    const now = new Date().toISOString(); M.reads[id] = now;
+    await sb.from("message_reads").upsert({ user_id: me.id, student_id: id, last_read_at: now });
+    if (opts.onRead) opts.onRead();
+  };
+  const render = () => {
+    if (!sorted.length) { box.innerHTML = `<p class="note">${opts.empty || "No conversations yet."}</p>`; return; }
+    const cur = sorted.find((t) => t.id === msgPick[boxId]) || sorted[0];
+    msgPick[boxId] = cur.id;
+    const list = sorted.length > 1 ? `<div class="mlist">${sorted.map((t) => {
+      const l = last(t.id), n = t.id === cur.id ? 0 : unreadIn(M, me, t.id), fl = admin && M.msgs.some((m) => m.student_id === t.id && m.flagged);
+      return `<button type="button" class="mthread${t.id === cur.id ? " on" : ""}" data-thread="${t.id}"><span class="mt">${esc(t.title)}${n ? `<span class="cnt">${n}</span>` : ""}${fl ? ' <span class="pill warn">Flagged</span>' : ""}</span><span class="ms">${l ? esc(l.sender_name + ": " + l.body.slice(0, 60)) : esc(t.sub || "No messages yet")}</span></button>`;
+    }).join("")}</div>` : "";
+    const ms = M.msgs.filter((m) => m.student_id === cur.id);
+    const bubbles = ms.map((m) => {
+      const mine = m.sender_id === me.id;
+      return `<div class="mb${mine ? " me" : ""}${m.flagged && admin ? " fl" : ""}"><div class="mh">${esc(m.sender_name)} <span>${ROLE_LABEL[m.sender_role] || ""} · ${esc(msgTime(m.created_at))}</span></div><div class="mx">${esc(m.body).replace(/\n/g, "<br>")}</div>${admin && m.flagged ? `<div class="mfl">Flagged: may share contact details or an outside link. <button class="lk" type="button" data-mok="${m.id}">Mark OK</button><button class="lk red" type="button" data-mdel="${m.id}">Delete</button></div>` : admin ? `<div class="mfl quiet"><button class="lk red" type="button" data-mdel="${m.id}">Delete</button></div>` : ""}</div>`;
+    }).join("");
+    box.innerHTML = `<div class="mwrap${list ? "" : " one"}">${list}<div class="mconv">
+      <div class="mhead"><b>${esc(cur.title)}</b>${cur.sub ? ` <span class="note">${esc(cur.sub)}</span>` : ""}</div>
+      <div class="mscroll">${bubbles || `<p class="note" style="text-align:center;margin:30px 0">No messages yet. Say hello, or ask about a class.</p>`}</div>
+      <form class="msend"><textarea name="body" rows="2" maxlength="2000" placeholder="Write a message…" required></textarea><button class="primary small" type="submit">Send</button></form>
+      <p class="note mnote">${opts.note || "The parent, student, tutor and Avelon can all read this conversation. Please keep messages about classes and don't share phone numbers or emails."}</p></div></div>`;
+    const sc = box.querySelector(".mscroll"); sc.scrollTop = sc.scrollHeight;
+    box.querySelectorAll("[data-thread]").forEach((b) => b.onclick = () => { msgPick[boxId] = b.dataset.thread; render(); markRead(b.dataset.thread); });
+    const f = box.querySelector(".msend"), ta = f.body;
+    ta.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) f.requestSubmit(); };
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const text = ta.value.trim(); if (!text) return;
+      const btn = f.querySelector("button"); btn.disabled = true;
+      try { const r = await call("send-message", { student_id: cur.id, body: text }); if (r?.message) M.msgs.push(r.message); M.reads[cur.id] = new Date().toISOString(); render(); }
+      catch (err) { btn.disabled = false; alert(err.message); }
+    };
+    box.querySelectorAll("[data-mok]").forEach((b) => b.onclick = async () => {
+      const { error } = await sb.from("messages").update({ flagged: false }).eq("id", b.dataset.mok);
+      if (error) return alert(error.message); M.msgs.find((m) => m.id === b.dataset.mok).flagged = false; render(); if (opts.onRead) opts.onRead();
+    });
+    box.querySelectorAll("[data-mdel]").forEach((b) => b.onclick = async () => {
+      if (!confirm("Delete this message for everyone?")) return;
+      const { error } = await sb.from("messages").delete().eq("id", b.dataset.mdel);
+      if (error) return alert(error.message); M.msgs = M.msgs.filter((m) => m.id !== b.dataset.mdel); render();
+    });
+  };
+  render();
+  // Opening the Messages tab marks the shown conversation as read; refresh every 20 seconds while it's open.
+  const panel = box.closest(".panel");
+  const visible = () => panel && panel.classList.contains("on") && document.body.contains(box);
+  app.querySelectorAll(`[data-tab="${panel?.id}"]`).forEach((b) => b.addEventListener("click", () => { if (msgPick[boxId]) markRead(msgPick[boxId]); }));
+  if (visible() && msgPick[boxId]) markRead(msgPick[boxId]);
+  clearInterval(msgTimer);
+  msgTimer = setInterval(async () => {
+    if (!document.body.contains(box)) return clearInterval(msgTimer);
+    if (!visible() || box.querySelector("textarea")?.value) return;
+    const fresh = await loadMsgs(me);
+    if (fresh.msgs.length !== M.msgs.length || fresh.msgs.some((m, i) => m.id !== M.msgs[i]?.id || m.flagged !== M.msgs[i]?.flagged)) { M.msgs = fresh.msgs; render(); if (msgPick[boxId]) markRead(msgPick[boxId]); }
+  }, 20000);
 }
 
 // ---------------- Tutor ----------------
@@ -595,13 +704,15 @@ async function tutorView(me) {
     sb.from("sessions").select("id, student_id, class_date, minutes, status, flag_reason").eq("tutor_id", me.id).order("class_date", { ascending: false }).limit(60),
     loadSF(),
   ]);
+  const M = await loadMsgs(me);
+  const tThreads = (kids || []).filter((k) => k.active !== false).map((k) => ({ id: k.id, title: `${k.first_name}${k.subject ? " · " + k.subject : ""}`, sub: k.grade || "" }));
   const byId = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const name = Object.fromEntries((kids || []).map((k) => [k.id, k.first_name]));
   const rows = (classes || []).map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(name[c.student_id] || "")}</td><td>${c.minutes} min</td><td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}</td></tr>`).join("");
   hero("Tutor portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Log each class right after it ends. The family gets an email to confirm it.");
   const waiting = (classes || []).filter((c) => c.status === "pending").length, flagged = (classes || []).filter((c) => c.status === "flagged").length;
   const weekN = sf.slots.filter((x) => byId[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
-  const T_SECTIONS = [["t-overview", "Overview"], ["t-week", "Your week", weekN], ["t-log", "Log a class"], ["t-students", "Your students"], ["t-recent", "Recent classes", flagged], ["t-details", "Your details"]];
+  const T_SECTIONS = [["t-overview", "Overview"], ["t-week", "Your week", weekN], ["t-log", "Log a class"], ["t-messages", "Messages", unreadAll(M, me, tThreads)], ["t-students", "Your students"], ["t-recent", "Recent classes", flagged], ["t-details", "Your details"]];
   app.innerHTML = `
     ${flash}
     ${dash(T_SECTIONS, `
@@ -619,6 +730,7 @@ async function tutorView(me) {
         <label>Plan for next week <span class="note" style="font-weight:400">(optional, listed under "Next week")</span><textarea name="next_plan" placeholder="e.g. Subtracting fractions, then a short quiz"></textarea></label>
         <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
+    <div class="panel" id="t-messages"><h2>Messages</h2><p class="note">Each conversation is with the student's family. The parent, the student and Avelon can read it.</p><div id="tmsgbox"></div></div>
     <div class="panel" id="t-students"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>
     <div class="panel" id="t-details"><h2>Your details</h2>
         <form id="tme" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}" required></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
@@ -627,6 +739,7 @@ async function tutorView(me) {
   flash = "";
   bindShared(me);
   bindDash("tutor", "t-overview");
+  mountMessages("tmsgbox", tThreads, me, M, { empty: "No students assigned to you yet.", note: "The parent, student and Avelon can read this conversation. Keep messages about classes, and don't share your phone number, email or other apps.", onRead: () => msgCount("t-messages", unreadAll(M, me, tThreads)) });
   document.getElementById("tme").onsubmit = async (e) => {
     e.preventDefault(); const f = new FormData(e.target);
     const { error } = await sb.from("profiles").update({ full_name: f.get("full_name"), phone: f.get("phone") }).eq("id", me.id);
@@ -652,6 +765,7 @@ async function adminView(me) {
     loadSF(),
     sb.rpc("usage_report"),
   ]);
+  const M = await loadMsgs(me);
   const { data: unbilled } = await sb.from("sessions").select("id, student_id, amount_cents, status, trial_number").eq("status", "approved").is("charge_id", null).gt("amount_cents", 0);
   const { data: reports } = await sb.from("weekend_reports").select("student_id, week_start, sent_to, class_count, sent_at").order("sent_at", { ascending: false }).limit(20);
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
@@ -729,7 +843,8 @@ async function adminView(me) {
   billable.forEach((c) => { const pid = K[c.student_id].parent_id; (byFam[pid] ||= { n: 0, total: 0, kids: new Set() }); byFam[pid].n++; byFam[pid].total += c.amount_cents; byFam[pid].kids.add(K[c.student_id].first_name); });
   const readyRows = Object.entries(byFam).map(([pid, f]) => `<tr><td><input type="checkbox" data-billfam="${pid}" data-amt="${f.total}" ${P[pid]?.card_last4 ? "checked" : ""}></td><td>${who(P[pid])}<div class="note">${esc([...f.kids].join(", "))}</div></td><td>${f.n}</td><td><b>${money(f.total)}</b></td><td>${P[pid]?.card_last4 ? "•••• " + esc(P[pid].card_last4) : '<span class="pill warn">No card</span>'}</td></tr>`).join("");
   const waitingConfirm = (classes || []).filter((c) => c.status === "pending" && c.amount_cents > 0).length;
-  const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["people", "Add people"], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["students", "Students"], ["parents", "Parents"], ["tutors", "Tutors"], ["schedules", "Schedules & files"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
+  const aThreads = (kids || []).filter((k) => k.active).map((k) => ({ id: k.id, title: `${k.first_name}${k.subject ? " · " + k.subject : ""}`, sub: `Parent ${P[k.parent_id]?.full_name || P[k.parent_id]?.email || "?"} · Tutor ${P[k.tutor_id]?.full_name || "none"}` }));
+  const SECTIONS = [["overview", "Overview"], ["requests", "Trial requests", newReqs], ["people", "Add people"], ["week", "This week", weekCount], ["attention", "Needs attention", open.length], ["messages", "Messages", M.msgs.filter((m) => m.flagged).length + unreadAll(M, me, aThreads)], ["students", "Students"], ["parents", "Parents"], ["tutors", "Tutors"], ["schedules", "Schedules & files"], ["reports", "Weekend reports"], ["billing", "Billing"], ["storage", "Storage"]];
   const TILES = [["requests", newReqs, "new trial requests", newReqs > 0], ["week", weekCount, "classes this week"], ["attention", open.length, "classes need attention", (open || []).some((c) => c.status === "flagged")], ["students", activeKids, "active students"], ["tutors", tutors.length, "tutors"], ["parents", parents.length, "parents"], ["storage", storagePct + "%", "storage used", storagePct >= 75]];
   hero("Admin", 'Avelon <span class="star">HQ.</span>', "Trial requests, schedules, tutors, families and billing in one place.");
   app.innerHTML = `
@@ -740,6 +855,7 @@ async function adminView(me) {
     <div class="panel" id="overview"><h2>Overview</h2><div class="tiles">${TILES.map(([id, num, label, warn]) => `<button type="button" class="tile${warn ? " warn" : ""}" data-tab="${id}"><b>${num}</b><span>${label}</span></button>`).join("")}</div></div>
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email. After your call, press <b>Set up family</b> to create their account and student. Booked or closed requests can be removed.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th><th></th></tr></thead><tbody>${reqRows || `<tr><td colspan="5" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
+    <div class="panel" id="messages"><h2>Messages</h2><p class="note">Every conversation between tutors and families. Messages that look like they share a phone number, email, another app or an outside link (YouTube, Khan Academy and Meet links are fine) are flagged (amber) and emailed to you. Messages you send show as "Avelon Academy".</p><div id="amsgbox"></div></div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Set the tutor and hourly price for each student. Changes save as soon as you make them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
@@ -785,6 +901,7 @@ async function adminView(me) {
   };
   app.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { pick(b.dataset.tab); if (innerWidth < 900) app.querySelector(".dmain").scrollIntoView({ behavior: "smooth" }); });
   pick(app.querySelector(`#${adminTab}`) ? adminTab : "overview");
+  mountMessages("amsgbox", aThreads, me, M, { empty: "No active students yet.", note: "You're posting as Avelon Academy. Everyone in this conversation sees it.", onRead: () => msgCount("messages", M.msgs.filter((m) => m.flagged).length + unreadAll(M, me, aThreads)) });
   document.getElementById("previewreports").onclick = async (e) => {
     e.target.disabled = true;
     try { const r = await call("weekend-report", { preview: true }); show(r.note || (r.sent.length ? `Sent ${r.sent.length} preview(s) to your inbox. Nothing was sent to families.` : "No reports to preview.")); }
