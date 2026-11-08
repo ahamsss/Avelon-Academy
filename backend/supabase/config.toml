@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.add-person]
 verify_jwt = false
+
+[functions.redeem-invite]
+verify_jwt = false

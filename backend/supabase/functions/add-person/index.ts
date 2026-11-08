@@ -26,12 +26,34 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   if (!res.ok) console.error("Email failed", await res.text());
 }
 
-function inviteEmail(first: string, kind: "tutor" | "family", student?: string) {
+async function sha256(s: string) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// A 6-digit sign-in code for this email, valid 24 hours, single use. Replaces any unused older code.
+async function makeCode(email: string) {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
+  const code = String(n).padStart(6, "0");
+  const pepper = Deno.env.get("CRON_SECRET") ?? "avelon";
+  await db.from("invite_codes").delete().eq("email", email).is("used_at", null);
+  await db.from("invite_codes").insert({ email, code_hash: await sha256(`${email}:${code}:${pepper}`), expires_at: new Date(Date.now() + 24 * 3600_000).toISOString() });
+  return code;
+}
+
+function inviteEmail(first: string, kind: "tutor" | "family" | "student", email: string, code: string, student?: string) {
   const title = kind === "tutor" ? "Welcome to the team" : "Your account is ready";
   const lines = kind === "tutor"
     ? ["You're now set up as an Avelon tutor. Once you log in, you'll see the students you're matched with, their weekly class times and Google Meet links, and the place to log each class right after it ends."]
+    : kind === "student"
+    ? ["Your parent or guardian set up your Avelon account. Once you log in, you'll see your class times and Google Meet links, plus your notes, homework and files."]
     : [`Your Avelon account${student ? " for " + esc(student) : ""} is ready. Once you log in, you'll see class times and Google Meet links, confirm classes, read notes and homework, and manage payments.`];
-  const how = "To sign in, go to avelonacademy.ca and click <b>Log in</b> at the top right (or use the button below). Enter this email address and we'll send you a sign-in link. There's no password to remember.";
+  const how = "Press <b>Log in</b> below and type in the code above. Or go to avelonacademy.ca, click <b>Log in</b> at the top right, then <b>I have a code</b>. There's no password to remember.";
+  const codeBox = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:4px 0 22px"><tr><td style="padding:20px 22px;text-align:center">
+      <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:8px">Your sign-in code</div>
+      <div style="font:700 34px/1.2 'Courier New',monospace;letter-spacing:8px;color:#0B0D12">${code.slice(0, 3)} ${code.slice(3)}</div>
+      <div style="font:13px/1.5 Arial,sans-serif;color:#5A5F6E;margin-top:8px">Works once, for the next 24 hours. After that, use "Email me a sign-in code" on the login page.</div></td></tr></table>`;
+  const loginUrl = `${SITE}/portal/?code=1&email=${encodeURIComponent(email)}`;
   const p = (t: string) => `<p style="font:16px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">${t}</p>`;
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"></head>
 <body style="margin:0;padding:0;background:#F1F1EE">
@@ -42,8 +64,8 @@ function inviteEmail(first: string, kind: "tutor" | "family", student?: string) 
     <div style="font:700 34px/1.1 Arial,sans-serif;color:#FFFFFF;margin-top:28px;letter-spacing:-1px">${title}<span style="color:#E0B354">.</span></div>
   </td></tr>
   <tr><td style="background:#FFFFFF;padding:34px 36px 8px">
-    ${p(`Hi ${esc(first || "there")},`)}${lines.map(p).join("")}${p(how)}
-    <p style="margin:8px 0 30px"><a href="${SITE}/portal/" style="background:#0E1528;color:#FFFFFF;padding:14px 26px;border-radius:999px;text-decoration:none;font:700 15px Arial,sans-serif;display:inline-block">Log in</a></p>
+    ${p(`Hi ${esc(first || "there")},`)}${lines.map(p).join("")}${codeBox}${p(how)}
+    <p style="margin:8px 0 30px"><a href="${loginUrl}" style="background:#0E1528;color:#FFFFFF;padding:14px 26px;border-radius:999px;text-decoration:none;font:700 15px Arial,sans-serif;display:inline-block">Log in</a></p>
     ${p("Questions? Just reply to this email.")}
     <p style="font:16px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 34px">Warmly,<br><b>Sadman</b><br><span style="color:#5A5F6E">Founder, Avelon Academy</span></p>
   </td></tr>
@@ -51,8 +73,8 @@ function inviteEmail(first: string, kind: "tutor" | "family", student?: string) 
     <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF"><a href="${SITE}" style="color:#F3EFE6;text-decoration:none">avelonacademy.ca</a> &nbsp;&middot;&nbsp; <a href="mailto:${ADMIN}" style="color:#F3EFE6;text-decoration:none">${ADMIN}</a></div>
   </td></tr>
 </table></td></tr></table></body></html>`;
-  const text = `Hi ${first || "there"},\n\n${lines.join("\n\n").replace(/&#39;/g, "'").replace(/&amp;/g, "&")}\n\n${how.replace(/<\/?b>/g, "")}\n\nLog in: ${SITE}/portal/\n\nQuestions? Just reply to this email.\n\nWarmly,\nSadman\nFounder, Avelon Academy`;
-  return { html, text, subject: kind === "tutor" ? "Welcome to Avelon Academy: your tutor account" : "Your Avelon Academy account is ready" };
+  const text = `Hi ${first || "there"},\n\n${lines.join("\n\n").replace(/&#39;/g, "'").replace(/&amp;/g, "&")}\n\nYour sign-in code: ${code} (works once, for 24 hours)\n\n${how.replace(/<\/?b>/g, "")}\n\nLog in: ${loginUrl}\n\nQuestions? Just reply to this email.\n\nWarmly,\nSadman\nFounder, Avelon Academy`;
+  return { html, text, subject: kind === "tutor" ? "Welcome to Avelon Academy: your tutor account" : kind === "student" ? "Your Avelon Academy student account is ready" : "Your Avelon Academy account is ready" };
 }
 
 Deno.serve(async (req) => {
@@ -114,8 +136,12 @@ Deno.serve(async (req) => {
     }
 
     if (b.send_email !== false) {
-      const m = inviteEmail(full_name.split(" ")[0], kind, st?.first_name);
+      const m = inviteEmail(full_name.split(" ")[0], kind, email, await makeCode(email), st?.first_name);
       await sendEmail(email, m.subject, m.html, m.text);
+      if (kind === "family" && st.student_email && st.student_email !== email) {
+        const sm = inviteEmail(st.first_name, "student", st.student_email, await makeCode(st.student_email));
+        await sendEmail(st.student_email, sm.subject, sm.html, sm.text);
+      }
     }
     return json({ ok: true, created });
   } catch (e) {
