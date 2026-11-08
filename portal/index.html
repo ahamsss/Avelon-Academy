@@ -73,16 +73,17 @@ button.ed:hover{background:var(--soft);color:var(--navy)}
 .seg{display:inline-flex;flex-wrap:wrap;background:var(--soft);border-radius:999px;padding:4px;gap:4px;margin:12px 0 0}.seg button{min-height:0;border:0;padding:7px 18px;font-size:14px;border-radius:999px;color:var(--ink);background:transparent}.seg button:hover{background:#fff;color:var(--ink)}.seg button.on{background:var(--navy);color:#fff}.subhead{display:flex;justify-content:space-between;align-items:center;gap:10px}.subhead h3{margin:0;font-size:20px}
 .table tr.more td{border-bottom:1px dashed var(--line)}.table tr.cont td{padding-top:8px}
 .addsub td{background:var(--soft)}.addsub .acts{justify-content:flex-start;gap:8px;flex-wrap:wrap}.addsub select{max-width:220px}.addsub select,.addsub input{width:auto;padding:7px 10px;font-size:14px;border-radius:8px}
-.mwrap{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}.mwrap.one{grid-template-columns:1fr}
+.mwrap{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start}.mwrap.one{grid-template-columns:1fr}
 @media(max-width:760px){.mwrap{grid-template-columns:1fr}}
-.mlist{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow:auto}
-.mthread{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:3px;min-height:0;padding:11px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:400}
+.mside{display:flex;flex-direction:column;gap:8px}.mside .msearch,.mside .mnew{padding:8px 12px;font-size:14px;border-radius:10px}
+.mlist{display:flex;flex-direction:column;gap:4px;max-height:380px;overflow:auto}
+.mthread{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:1px;min-height:0;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font-weight:400}
 .mthread:hover{background:var(--soft);color:var(--ink)}.mthread.on{border-color:var(--navy);background:var(--soft)}
-.mthread .mt{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mthread .ms{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mthread .mt{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mthread .ms{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .mthread .cnt{background:var(--blue-text);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px}
 .mconv{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
 .mhead{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--soft)}
-.mscroll{padding:16px;max-height:420px;min-height:180px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.mscroll{padding:16px;max-height:380px;min-height:150px;overflow:auto;display:flex;flex-direction:column;gap:10px}
 .mb{max-width:78%;align-self:flex-start;background:var(--soft);border-radius:14px 14px 14px 4px;padding:9px 13px}
 .mb.me{align-self:flex-end;background:var(--navy);color:#fff;border-radius:14px 14px 4px 14px}.mb.me .mh span{color:#C3CBDD}
 .mb.fl{outline:2px solid #F59E0B}
@@ -91,6 +92,8 @@ button.ed:hover{background:var(--soft);color:var(--navy)}
 .mfl{font-size:12px;color:var(--warn);margin-top:6px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}.mfl.quiet{justify-content:flex-end;margin-top:2px}.mb.me .mfl .lk{color:#FCA5A5}
 .msend{display:flex;gap:10px;align-items:flex-end;padding:12px;border-top:1px solid var(--line)}.msend textarea{min-height:46px;resize:vertical;flex:1}
 .mnote{padding:0 14px 12px;margin:0;font-size:12.5px}
+.ef{display:flex;gap:6px;margin:0 0 6px}.ef input,.ef select{padding:7px 10px;font-size:14px;border-radius:8px}.ef input[name=first_name]{min-width:0;flex:1}.ef select[name=grade]{width:auto}
+.table tr.editing td{background:#FAFAF8}.table tr.editfoot td{background:#FAFAF8;padding-top:6px}
 .gs{font-size:14px;font-weight:600;color:var(--ink);margin-top:2px}
 .saved{font-size:13px;font-weight:600;color:var(--muted);min-width:62px;text-align:right;margin-right:4px}.saved.ok{color:var(--ok)}.saved.bad{color:var(--bad)}
 .acts select{width:auto;padding:5px 10px;font-size:13px;border-radius:8px;margin-right:4px}
@@ -182,6 +185,7 @@ const pill = (s) => {
 };
 let flash = "";
 let adminTab = "overview";
+let editKid = null;
 const params = new URLSearchParams(location.search);
 if (params.get("card") === "saved") flash = `<div class="msg ok">Card saved. It can take a few seconds to show here.</div>`;
 if (params.get("card") === "cancelled") flash = `<div class="msg info">No card was saved.</div>`;
@@ -645,12 +649,18 @@ function mountMessages(boxId, threads, me, M, opts = {}) {
   };
   const render = () => {
     if (!sorted.length) { box.innerHTML = `<p class="note">${opts.empty || "No conversations yet."}</p>`; return; }
-    const cur = sorted.find((t) => t.id === msgPick[boxId]) || sorted[0];
+    const has = (id) => M.msgs.some((m) => m.student_id === id);
+    const cur = sorted.find((t) => t.id === msgPick[boxId]) || sorted.find((t) => has(t.id)) || sorted[0];
     msgPick[boxId] = cur.id;
-    const list = sorted.length > 1 ? `<div class="mlist">${sorted.map((t) => {
+    // Admin: only conversations with messages are listed; any other student can be picked from "New conversation".
+    const shown = admin ? sorted.filter((t) => has(t.id) || t.id === cur.id) : sorted;
+    const others = admin ? sorted.filter((t) => !shown.includes(t)) : [];
+    const tools = (shown.length > 6 ? `<input class="msearch" type="search" placeholder="Search students" aria-label="Search conversations">` : "")
+      + (others.length ? `<select class="mnew" aria-label="Start a new conversation"><option value="">+ New conversation…</option>${others.map((t) => `<option value="${t.id}">${esc(t.title)}</option>`).join("")}</select>` : "");
+    const list = shown.length > 1 || tools ? `<div class="mside">${tools}<div class="mlist">${shown.map((t) => {
       const l = last(t.id), n = t.id === cur.id ? 0 : unreadIn(M, me, t.id), fl = admin && M.msgs.some((m) => m.student_id === t.id && m.flagged);
       return `<button type="button" class="mthread${t.id === cur.id ? " on" : ""}" data-thread="${t.id}"><span class="mt">${esc(t.title)}${n ? `<span class="cnt">${n}</span>` : ""}${fl ? ' <span class="pill warn">Flagged</span>' : ""}</span><span class="ms">${l ? esc(l.sender_name + ": " + l.body.slice(0, 60)) : esc(t.sub || "No messages yet")}</span></button>`;
-    }).join("")}</div>` : "";
+    }).join("")}</div></div>` : "";
     const ms = M.msgs.filter((m) => m.student_id === cur.id);
     const bubbles = ms.map((m) => {
       const mine = m.sender_id === me.id;
@@ -663,6 +673,10 @@ function mountMessages(boxId, threads, me, M, opts = {}) {
       <p class="note mnote">${opts.note || "The parent, student, tutor and Avelon can all read this conversation. Please keep messages about classes and don't share phone numbers or emails."}</p></div></div>`;
     const sc = box.querySelector(".mscroll"); sc.scrollTop = sc.scrollHeight;
     box.querySelectorAll("[data-thread]").forEach((b) => b.onclick = () => { msgPick[boxId] = b.dataset.thread; render(); markRead(b.dataset.thread); });
+    const srch = box.querySelector(".msearch");
+    if (srch) srch.oninput = () => { const q = srch.value.trim().toLowerCase(); box.querySelectorAll("[data-thread]").forEach((b) => b.classList.toggle("hidden", !!q && !b.textContent.toLowerCase().includes(q))); };
+    const mnew = box.querySelector(".mnew");
+    if (mnew) mnew.onchange = () => { if (mnew.value) { msgPick[boxId] = mnew.value; render(); box.querySelector(".msend textarea").focus(); } };
     const f = box.querySelector(".msend"), ta = f.body;
     ta.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) f.requestSubmit(); };
     f.onsubmit = async (e) => {
@@ -795,24 +809,37 @@ async function adminView(me) {
   for (const k of kids || []) if (k.open_to_group && k.active) (groups[`${k.grade || "?"} · ${k.subject || "?"}`] ||= []).push(k.first_name);
   const matchable = Object.entries(groups).filter(([, n]) => n.length >= 2);
   const kidGroups = groupLearners((kids || []).slice().sort((x, y) => (y.active ? 1 : 0) - (x.active ? 1 : 0)));
-  const subjOpts = (taken, sel) => SUBJECTS.filter((x) => !taken.includes(x)).map((x) => `<option ${x === sel ? "selected" : ""}>${x}</option>`).join("");
+  const GRADES = Array.from({ length: 10 }, (_, i) => `Grade ${i + 1}`);
+  const tutorOpts = (sel) => `<option value="">none</option>${tutors.concat(sel && !tutors.some((t) => t.id === sel) && P[sel] ? [P[sel]] : []).map((t) => `<option value="${t.id}" ${t.id === sel ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}`;
+  const firstName = (id) => esc((P[id]?.full_name || P[id]?.email || "").split(" ")[0]);
   const kidRows = kidGroups.map((g, gi) => {
-    const k0 = g[0], par = P[k0.parent_id], em = g.find((r) => r.student_email)?.student_email;
-    const rows = g.map((k, i) => `<tr data-kid="${k.id}" class="${i < g.length - 1 ? "more" : ""}${i ? " cont" : ""}"${k.active ? "" : ' style="opacity:.6"'}>
-    <td>${i === 0 ? `<b>${esc(k.first_name)}</b> <span class="note">${esc(k.grade || "")}</span>` : ""}<div class="gs">${esc(k.subject || "")}${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}</div>${i === 0 ? `<div class="note">Parent: ${who(par)}${par?.card_last4 ? " · card ✓" : " · no card"}${em ? `<br>Student email: ${esc(em)} <button class="lk" type="button" data-resend="${esc(em)}" style="padding:2px 6px">Send login code</button>` : ""}<br>${g.length < SUBJECTS.length ? `<button class="lk" type="button" data-addsub="${gi}" style="padding:2px 6px;margin-left:-6px">+ Add subject</button>` : ""}</div>` : ""}</td>
-    <td><select name="tutor" class="fit"><option value="">none</option>${tutors.map((t) => `<option value="${t.id}" ${t.id === k.tutor_id ? "selected" : ""}>${tutorLabel(t)}</option>`).join("")}</select></td>
+    const k0 = g[0], key = learnerKey(k0), par = P[k0.parent_id], em = g.find((r) => r.student_email)?.student_email;
+    const parentLine = `<div class="note">Parent: ${who(par)}${par?.card_last4 ? " · card ✓" : " · no card"}${em ? `<br>Student email: ${esc(em)} <button class="lk" type="button" data-resend="${esc(em)}" style="padding:2px 6px">Send login code</button>` : ""}</div>`;
+    if (editKid !== key) {
+      return g.map((k, i) => `<tr class="${i < g.length - 1 ? "more" : ""}${i ? " cont" : ""}"${k.active ? "" : ' style="opacity:.6"'}>
+    <td>${i === 0 ? `<b>${esc(k.first_name)}</b> <span class="note">${esc(k.grade || "")}</span><button class="ed" type="button" title="Edit" aria-label="Edit ${esc(k.first_name)}" data-editkid="${esc(key)}">✎</button>` : ""}<div class="gs">${esc(k.subject || "")}${k.active ? "" : ' <span class="pill">Past</span>'}${k.open_to_group ? ' <span class="pill blue">Open to group</span>' : ""}</div>${i === 0 ? parentLine : ""}</td>
+    <td>${k.tutor_id ? firstName(k.tutor_id) : '<span class="note">none</span>'}</td>
+    <td>${k.rate_cents != null ? money(k.rate_cents) : '<span class="note">—</span>'}</td>
+    <td>${pill(k.trial_status)}</td></tr>`).join("");
+    }
+    // Edit mode for this student: every field editable, plus add subject, remove, save and cancel.
+    const rows = g.map((k, i) => `<tr data-kid="${k.id}" class="editing more${i ? " cont" : ""}">
+    <td>${i === 0 ? `<div class="ef"><input name="first_name" value="${esc(k.first_name)}" aria-label="First name" placeholder="First name"><select name="grade" aria-label="Grade">${GRADES.map((x) => `<option ${x === k.grade ? "selected" : ""}>${x}</option>`).join("")}</select></div>` : ""}
+      <div class="ef"><select name="subject" aria-label="Subject">${SUBJECTS.concat(SUBJECTS.includes(k.subject) ? [] : [k.subject]).map((x) => `<option ${x === k.subject ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>
+      ${i === 0 ? `<div class="ef"><input name="student_email" type="email" value="${esc(em || "")}" placeholder="Student email (optional)" aria-label="Student email"></div><div class="note">Parent: ${who(par)}</div>` : ""}</td>
+    <td><select name="tutor" class="fit">${tutorOpts(k.tutor_id)}</select></td>
     <td><input name="rate" type="number" min="0" step="0.5" class="fit" style="width:72px" value="${k.rate_cents != null ? (k.rate_cents / 100) : ""}" placeholder="$/hr"></td>
-    <td><select name="trial" class="fit" style="min-width:122px">${["trial", "continuing", "ended"].map((t) => `<option ${t === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select></td>
-    <td><input name="active" type="checkbox" ${k.active ? "checked" : ""} aria-label="Active" style="width:auto"></td>
-    <td><div class="acts"><span class="saved" data-savedmark></span><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name + (g.length > 1 ? " (" + (k.subject || "") + ")" : ""))}" type="button">Remove</button></div></td></tr>`).join("");
-    const taken = g.map((r) => r.subject);
-    const add = g.length < SUBJECTS.length ? `<tr class="addsub hidden" data-addrow="${gi}"><td colspan="6"><form class="acts" data-addsubf="${gi}" data-parent="${esc(par?.email || "")}" data-pname="${esc(par?.full_name || "")}" data-first="${esc(k0.first_name)}" data-grade="${esc(k0.grade || "")}" data-semail="${esc(em || "")}">
+    <td><select name="trial" class="fit" style="min-width:122px" aria-label="Status">${[["trial", "Trial"], ["continuing", "Enrolled"], ["ended", "Stopped"]].map(([v, t]) => `<option value="${v}" ${v === k.trial_status ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <div class="acts" style="justify-content:flex-start;margin-top:8px"><label class="check" style="font-weight:500;font-size:13px;margin-right:6px"><input name="active" type="checkbox" ${k.active ? "checked" : ""} style="width:auto"> Active</label><button class="lk red" data-rmkid="${k.id}" data-name="${esc(k.first_name + (g.length > 1 ? " (" + (k.subject || "") + ")" : ""))}" type="button">Remove</button></div></td></tr>`).join("");
+    const taken = g.map((r) => r.subject), free = SUBJECTS.filter((x) => !taken.includes(x));
+    const add = free.length ? `<tr class="addsub hidden" data-addrow="${gi}"><td colspan="4"><form class="acts" data-addsubf="${gi}" data-parent="${esc(par?.email || "")}" data-pname="${esc(par?.full_name || "")}" data-first="${esc(k0.first_name)}" data-grade="${esc(k0.grade || "")}" data-semail="${esc(em || "")}">
       <b style="margin-right:4px">Add a subject for ${esc(k0.first_name)}:</b>
-      <select name="subject" aria-label="Subject">${subjOpts(taken)}</select>
+      <select name="subject" aria-label="Subject">${free.map((x) => `<option>${x}</option>`).join("")}</select>
       <select name="tutor_id" aria-label="Tutor"><option value="">Tutor: not yet</option>${tutors.map((t) => `<option value="${t.id}">${tutorLabel(t)}</option>`).join("")}</select>
       <input name="rate" type="number" min="0" step="0.5" placeholder="$/hr" aria-label="Rate" style="width:84px">
       <button class="small primary" type="submit" style="min-height:34px;padding:4px 16px;font-size:14px">Add</button><button class="lk" type="button" data-addcancel="${gi}">Cancel</button></form></td></tr>` : "";
-    return rows + add;
+    const foot = `<tr class="editfoot"><td colspan="4"><div class="acts" style="justify-content:space-between">${free.length ? `<button class="lk" type="button" data-addsub="${gi}" style="margin-left:-6px">+ Add subject</button>` : "<span></span>"}<span class="acts"><button class="lk" type="button" data-editcancel>Cancel</button><button class="small primary" type="button" data-editsave="${esc(key)}" style="min-height:34px;padding:4px 18px;font-size:14px">Save</button></span></div></td></tr>`;
+    return rows + add + foot;
   }).join("");
 
   // Parents and tutors
@@ -821,7 +848,7 @@ async function adminView(me) {
     return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="ed" type="button" title="Edit name" aria-label="Edit name" data-rename="${p.id}" data-name="${esc(p.full_name || "")}">✎</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
       <td>${[...new Set(ch.map((k) => k.first_name))].map(esc).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td><div class="acts">${p.archived_at
         ? `<span class="pill">Removed</span><button class="lk" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button>`
-        : `${roleSel(p)}<button class="lk" type="button" data-resend="${esc(p.email)}">Send login code</button><button class="lk red" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</div></td></tr>`;
+        : `<button class="lk" type="button" data-resend="${esc(p.email)}">Send login code</button><button class="lk red" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</div></td></tr>`;
   }).join("");
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
     const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
@@ -857,9 +884,9 @@ async function adminView(me) {
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="messages"><h2>Messages</h2><p class="note">Every conversation between tutors and families. Messages that look like they share a phone number, email, another app or an outside link (YouTube, Khan Academy and Meet links are fine) are flagged (amber) and emailed to you. Messages you send show as "Avelon Academy".</p><div id="amsgbox"></div></div>
     <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Set the tutor and hourly price for each student. Changes save as soon as you make them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
+    <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Press ✎ next to a name to edit the student, change tutor or rate, add a subject or remove them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
-      <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Trial</th><th>Active</th><th></th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
+      <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Status</th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="schedules"><h2>Schedules &amp; files</h2><p class="note">Set each student's weekly class time and Google Meet link. The family, the student and the tutor all see it.</p>
       ${(kids || []).filter((k) => k.active).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))} · tutor: ${who(P[k.tutor_id]) || "none"} · ${sf.slots.filter((s) => s.student_id === k.id).length} weekly class(es)</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students yet.</p>`}</div>
     <div class="panel" id="people"><h2>Add people</h2>
@@ -881,7 +908,7 @@ async function adminView(me) {
         <label class="check"><input type="checkbox" name="send_email" checked> Email them a welcome with how to sign in</label>
         <button class="primary" type="submit">Add tutor</button></form></div>
     <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. If someone stops tutoring, press <b>Remove access</b> so they can no longer see students.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Families you add, plus anyone who signs in on their own. Your own account appears here too if you sign in with another email for testing.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th>Role</th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Families you add, plus anyone who signs in on their own. Your own account appears here too if you sign in with another email for testing.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th></th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
       <button id="previewreports" type="button">Email me a preview of this week's reports</button>
       <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
@@ -923,19 +950,24 @@ async function adminView(me) {
     try { await rpc("admin_set_session", { p_session: b.dataset.id, p_status: b.dataset.set }); show("Updated."); }
     catch (err) { show(err.message, "bad"); }
   });
-  // Student rows save themselves as soon as a tutor, rate, trial or active box changes.
-  app.querySelectorAll("tr[data-kid]").forEach((tr) => {
-    const g = (n) => tr.querySelector(`[name=${n}]`); const mark = tr.querySelector("[data-savedmark]");
-    const save = async () => {
-      const rate = g("rate").value === "" ? null : Math.round(Number(g("rate").value) * 100);
-      mark.textContent = "Saving…"; mark.className = "saved";
-      try {
-        await rpc("admin_update_student", { p_student: tr.dataset.kid, p_tutor: g("tutor").value || null, p_rate_cents: rate, p_trial_status: g("trial").value, p_active: g("active").checked });
-        mark.textContent = "✓ Saved"; mark.className = "saved ok";
-        clearTimeout(mark._t); mark._t = setTimeout(() => { mark.textContent = ""; }, 2500);
-      } catch (err) { mark.textContent = "Not saved"; mark.className = "saved bad"; show(err.message, "bad"); }
-    };
-    ["tutor", "rate", "trial", "active"].forEach((n) => g(n).addEventListener("change", save));
+  // Students: pencil opens edit mode for one student (all their subjects); Save writes every row.
+  app.querySelectorAll("[data-editkid]").forEach((b) => b.onclick = () => { editKid = b.dataset.editkid; route(); });
+  app.querySelectorAll("[data-editcancel]").forEach((b) => b.onclick = () => { editKid = null; route(); });
+  app.querySelectorAll("[data-editsave]").forEach((b) => b.onclick = async () => {
+    const trs = [...app.querySelectorAll("tr.editing[data-kid]")], top = trs[0], g = (tr, n) => tr.querySelector(`[name=${n}]`);
+    const first = g(top, "first_name").value.trim(), grade = g(top, "grade").value, email = g(top, "student_email").value.trim();
+    const subs = trs.map((tr) => g(tr, "subject").value);
+    if (!first) return show("Please enter the student's first name.", "bad");
+    if (new Set(subs).size !== subs.length) return show("Each subject can only be listed once for a student.", "bad");
+    b.disabled = true;
+    try {
+      for (const tr of trs) {
+        const rate = g(tr, "rate").value === "" ? null : Math.round(Number(g(tr, "rate").value) * 100);
+        await rpc("admin_edit_student", { p_student: tr.dataset.kid, p_first_name: first, p_grade: grade, p_subject: g(tr, "subject").value, p_student_email: email || null,
+          p_tutor: g(tr, "tutor").value || null, p_rate_cents: rate, p_trial_status: g(tr, "trial").value, p_active: g(tr, "active").checked });
+      }
+      editKid = null; show(`${first} saved.`);
+    } catch (err) { b.disabled = false; show(err.message, "bad"); }
   });
   app.querySelectorAll("[data-addsub]").forEach((b) => b.onclick = () => {
     const row = app.querySelector(`[data-addrow="${b.dataset.addsub}"]`); row.classList.remove("hidden"); row.querySelector("select").focus();
