@@ -94,6 +94,7 @@ button.ed:hover{background:var(--soft);color:var(--navy)}
 .mnote{padding:0 14px 12px;margin:0;font-size:12.5px}
 .ef{display:flex;gap:6px;margin:0 0 6px}.ef input,.ef select{padding:7px 10px;font-size:14px;border-radius:8px}.ef input[name=first_name]{min-width:0;flex:1}.ef select[name=grade]{width:auto}
 .table tr.editing td{background:#FAFAF8}.table tr.editfoot td{background:#FAFAF8;padding-top:6px}
+.prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.price{background:var(--soft);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:2px}.price b{font-size:26px;letter-spacing:-.5px}.price span{font-size:13px;color:var(--muted)}.price em{font-style:normal;font-weight:600;margin-top:6px}
 .gs{font-size:14px;font-weight:600;color:var(--ink);margin-top:2px}
 .saved{font-size:13px;font-weight:600;color:var(--muted);min-width:62px;text-align:right;margin-right:4px}.saved.ok{color:var(--ok)}.saved.bad{color:var(--bad)}
 .acts select{width:auto;padding:5px 10px;font-size:13px;border-radius:8px;margin-right:4px}
@@ -186,6 +187,7 @@ const pill = (s) => {
 let flash = "";
 let adminTab = "overview";
 let editKid = null;
+let editPerson = null;
 const params = new URLSearchParams(location.search);
 if (params.get("card") === "saved") flash = `<div class="msg ok">Card saved. It can take a few seconds to show here.</div>`;
 if (params.get("card") === "cancelled") flash = `<div class="msg info">No card was saved.</div>`;
@@ -462,6 +464,10 @@ function subjectLine(rows, tname) {
 }
 
 const segPick = {};
+// The price list families see (per hour, CAD). The admin sets each student's actual rate in Students.
+const PRICES = [["One-on-one", 2500], ["Small group (2–3 students)", 2000], ["Bangla", 2000]];
+const priceList = () => `<div class="prices">${PRICES.map(([n, c]) => `<div class="price"><b>${money(c)}</b><span>per hour</span><em>${esc(n)}</em></div>`).join("")}</div>
+  <p class="note" style="margin:10px 0 0">Charged at the booked class length, never for running over. The first trial class is free.</p>`;
 async function myView(me, own, asStudent) {
   document.body.classList.add("dashmode");
   const holder = own.length > 0 || !asStudent.length;
@@ -515,10 +521,9 @@ async function myView(me, own, asStudent) {
       ? `<p class="note">Trial: ${Math.min(n, 3)} of 3 classes taken.</p>
          <div class="actions"><button class="small primary" data-trial="continuing" data-id="${k.id}" type="button">Continue with Avelon</button>
          <button class="small" data-trial="ended" data-id="${k.id}" type="button">Stop after the trial</button></div>` : "";
-    const rate = isOwn(k) ? `<p style="margin:10px 0 0">Rate: <b>${k.rate_cents != null ? money(k.rate_cents) + " per hour" : "set after the trial"}</b> <span class="note">· charged at the booked class length</span></p>` : "";
     const group = isOwn(k) ? `<label class="check"><input type="checkbox" data-group="${k.id}" ${k.open_to_group ? "checked" : ""}> Open to a small group (2–3 students) if we can match one</label>` : "";
     const head = many ? `<div class="subhead"><h3>${esc(k.subject || "")}${TN[k.tutor_id] ? ` <span class="with">with ${esc(TN[k.tutor_id])}</span>` : ""}</h3>${pill(k.trial_status)}</div>` : "";
-    return `<div class="${many ? "subblock" : ""}"${many ? ` data-segblock="${learnerKey(k)}" data-sub="${esc(k.subject || "")}"` : ""}>${head}${rate}${trial}${group}
+    return `<div class="${many ? "subblock" : ""}"${many ? ` data-segblock="${learnerKey(k)}" data-sub="${esc(k.subject || "")}"` : ""}>${head}${trial}${group}
       ${slotsHtml(k, sf.slots, false)}${filesHtml(k, sf.files, me)}
       <h3 style="margin:26px 0 8px">Classes</h3>${classTable(mine.filter((c) => c.student_id === k.id), false)}</div>`;
   };
@@ -546,13 +551,13 @@ async function myView(me, own, asStudent) {
   app.innerHTML = `
     ${flash}
     ${dash(SECTIONS, `
-    <div class="panel" id="m-overview"><h2>Overview</h2>${tiles(T)}${holder && !kids.length ? `<p class="note" style="margin-top:18px">Add a student to get started.</p><button class="primary" type="button" data-tab="m-add">Add a student</button>` : ""}</div>
+    <div class="panel" id="m-overview"><h2>Overview</h2>${tiles(T)}${holder ? `<h3 style="margin:26px 0 12px">Prices</h3>${priceList()}` : ""}${holder && !kids.length ? `<p class="note" style="margin-top:18px">Add a student to get started.</p><button class="primary" type="button" data-tab="m-add">Add a student</button>` : ""}</div>
     <div class="panel" id="m-schedule"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, byId, { days: 14, empty: "No classes scheduled yet. Once a tutor is matched, class times and Google Meet links appear here." })}</div>
     <div class="panel" id="m-messages"><h2>Messages</h2><p class="note">Message ${kids.length ? "your tutor" : "us"} about classes: rescheduling, questions about homework, or anything else.</p><div id="msgbox"></div></div>
     ${learners.map(studentPanel).join("")}
     <div class="panel" id="m-classes"><h2>Class log</h2><p class="note">${holder ? "Each class your tutor logs shows here. There's nothing to confirm: classes are charged at the booked length and billed after 48 hours. If something isn't right, press Report a problem within 48 hours and we won't charge that class until it's sorted." : "Every class your tutor has logged, with notes and homework."}</p>${classTable(mine, kids.length > 1)}</div>
     ${holder ? `
-    <div class="panel" id="m-payments"><h2>Payment card</h2>${card}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="m-payments"><h2>Prices</h2>${priceList()}<h2 style="margin-top:30px">Payment card</h2>${card}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="m-details"><h2>Your details</h2>
         <form id="me" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}"></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
         <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
@@ -777,7 +782,8 @@ async function adminView(me) {
     loadSF(),
     sb.rpc("usage_report"),
   ]);
-  const M = await loadMsgs(me);
+  const [M, { data: payRowsT }] = await Promise.all([loadMsgs(me), sb.from("tutor_pay").select("*")]);
+  const PAY = Object.fromEntries((payRowsT || []).map((r) => [r.tutor_id, r.rate_cents]));
   const { data: unbilled } = await sb.from("sessions").select("id, student_id, amount_cents, status, trial_number").eq("status", "approved").is("charge_id", null).gt("amount_cents", 0);
   const { data: reports } = await sb.from("weekend_reports").select("student_id, week_start, sent_to, class_count, sent_at").order("sent_at", { ascending: false }).limit(20);
   const P = Object.fromEntries((people || []).map((p) => [p.id, p]));
@@ -844,17 +850,31 @@ async function adminView(me) {
   }).join("");
 
   // Parents and tutors
+  // Parents and tutors: read-only rows; the pencil opens edit mode (name, phone, and for tutors their pay).
+  const personEdit = (p) => `<div class="ef"><input name="full_name" value="${esc(p.full_name || "")}" placeholder="Name" aria-label="Name"></div><div class="ef"><input name="phone" value="${esc(p.phone || "")}" placeholder="Phone" aria-label="Phone"></div><div class="note">${esc(p.email)} <span style="font-size:12px">(sign-in email, can't change)</span></div>`;
+  const personRead = (p) => `<b>${esc(p.full_name || "")}</b><button class="ed" type="button" title="Edit" aria-label="Edit ${esc(p.full_name || p.email)}" data-editperson="${p.id}">✎</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div>`;
+  const saveBar = (p, extra) => `<div class="acts"><button class="lk" type="button" data-personcancel>Cancel</button><button class="small primary" type="button" data-personsave="${p.id}" style="min-height:34px;padding:4px 18px;font-size:14px">Save</button>${extra}</div>`;
   const parentRows = parents.slice().sort((x, y) => (x.archived_at ? 1 : 0) - (y.archived_at ? 1 : 0)).map((p) => {
-    const ch = (kids || []).filter((k) => k.parent_id === p.id);
-    return `<tr><td><b>${esc(p.full_name || "")}</b> <button class="ed" type="button" title="Edit name" aria-label="Edit name" data-rename="${p.id}" data-name="${esc(p.full_name || "")}">✎</button><div class="note"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a>${p.phone ? " · " + esc(p.phone) : ""}</div></td>
-      <td>${[...new Set(ch.map((k) => k.first_name))].map(esc).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td><div class="acts">${p.archived_at
-        ? `<span class="pill">Removed</span><button class="lk" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button>`
-        : `<button class="lk" type="button" data-resend="${esc(p.email)}">Send login code</button><button class="lk red" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`}</div></td></tr>`;
+    const ch = (kids || []).filter((k) => k.parent_id === p.id), editing = editPerson === p.id;
+    return `<tr${editing ? ' class="editing" data-person="' + p.id + '"' : ""}><td>${editing ? personEdit(p) : personRead(p)}</td>
+      <td>${[...new Set(ch.map((k) => k.first_name))].map(esc).join(", ") || '<span class="note">none yet</span>'}</td><td>${p.card_last4 ? "✓ •••• " + esc(p.card_last4) : '<span class="note">none</span>'}</td><td>${p.archived_at
+        ? `<div class="acts"><span class="pill">Removed</span><button class="lk" type="button" data-restorefam="${p.id}" data-name="${esc(p.full_name || p.email)}">Restore</button></div>`
+        : editing ? saveBar(p, `<button class="lk red" type="button" data-rmfam="${p.id}" data-name="${esc(p.full_name || p.email)}">Remove</button>`)
+        : `<div class="acts"><button class="lk" type="button" data-resend="${esc(p.email)}">Send login code</button></div>`}</td></tr>`;
   }).join("");
+  // What each tutor has taught this month (logged, not voided) at the pay rate you set.
+  const monthStart = today().slice(0, 8) + "01";
   const tutorRows = tutors.concat(admins.filter((a) => (kids || []).some((k) => k.tutor_id === a.id))).map((t) => {
-    const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active);
-    return `<tr><td><b>${esc(t.full_name || "")}</b> <button class="ed" type="button" title="Edit name" aria-label="Edit name" data-rename="${t.id}" data-name="${esc(t.full_name || "")}">✎</button><div class="note"><a href="mailto:${esc(t.email)}">${esc(t.email)}</a>${t.phone ? " · " + esc(t.phone) : ""}</div></td>
-      <td>${st.map((k) => `${esc(k.first_name)} <span class="note">(${esc(k.grade || "")} ${esc(k.subject || "")})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td><td><div class="acts"><button class="lk" type="button" data-resend="${esc(t.email)}">Send login code</button>${t.role === "tutor" ? `<button class="lk red" type="button" data-untutor="${t.id}" data-name="${esc(t.full_name || t.email)}">Remove access</button>` : ""}</div></td></tr>`;
+    const st = (kids || []).filter((k) => k.tutor_id === t.id && k.active), editing = editPerson === t.id;
+    const done = (classes || []).filter((c) => c.tutor_id === t.id && c.status !== "void" && c.class_date >= monthStart);
+    const mins = done.reduce((a, c) => a + c.minutes, 0), pay = PAY[t.id];
+    const month = done.length ? `${done.length} class${done.length === 1 ? "" : "es"} · ${+(mins / 60).toFixed(2)} h${pay != null ? `<br><b>${money(Math.round(pay * mins / 60))}</b>` : ""}` : '<span class="note">none yet</span>';
+    return `<tr${editing ? ' class="editing" data-person="' + t.id + '"' : ""}><td>${editing ? personEdit(t) : personRead(t)}</td>
+      <td>${groupLearners(st).map((g) => `${esc(g[0].first_name)} <span class="note">(${esc(g[0].grade || "")} ${esc(andJoin(g.map((k) => k.subject || "")))})</span>`).join("<br>") || '<span class="note">no students yet</span>'}</td>
+      <td>${editing ? `<input name="pay" type="number" min="0" step="0.5" class="fit" style="width:84px" value="${pay != null ? pay / 100 : ""}" placeholder="$/hr" aria-label="Pay per hour">` : pay != null ? `${money(pay)}<span class="note">/hr</span>` : '<span class="note">not set</span>'}</td>
+      <td>${month}</td>
+      <td>${editing ? saveBar(t, t.role === "tutor" ? `<button class="lk red" type="button" data-untutor="${t.id}" data-name="${esc(t.full_name || t.email)}">Remove access</button>` : "")
+        : `<div class="acts"><button class="lk" type="button" data-resend="${esc(t.email)}">Send login code</button></div>`}</td></tr>`;
   }).join("");
 
   const payRows = (pays || []).map((c) => `<tr><td>${new Date(c.created_at).toLocaleDateString("en-CA")}</td><td>${who(P[c.parent_id])}</td><td>${money(c.amount_cents)}</td><td>${pill(c.status)}${c.failure_message ? `<div class="note">${esc(c.failure_message)}</div>` : ""}</td></tr>`).join("");
@@ -885,7 +905,7 @@ async function adminView(me) {
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="messages"><h2>Messages</h2><p class="note">Every conversation between tutors and families. Messages that look like they share a phone number, email, another app or an outside link (YouTube, Khan Academy and Meet links are fine) are flagged (amber) and emailed to you. Messages you send show as "Avelon Academy".</p><div id="amsgbox"></div></div>
     <div class="panel" id="attention"><h2>Problems reported (${open.length})</h2><p class="note">A family reported a problem with these classes within 48 hours. Sort it out with them, then bill the class or choose not to charge it.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Press ✎ next to a name to edit the student, change tutor or rate, add a subject or remove them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
+    <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Press ✎ next to a name to edit the student, change tutor or rate, add a subject or remove them. Tutors can only log classes once both are set. Prices: one-on-one $25/hour; small group and Bangla $20/hour. Only you see these rates; families see the price list.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
       <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Status</th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="schedules"><h2>Schedules &amp; files</h2><p class="note">Set each student's weekly class time and Google Meet link. The family, the student and the tutor all see it.</p>
@@ -908,8 +928,8 @@ async function adminView(me) {
         <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Their email<input name="email" type="email" required></label><label>Phone <span class="note" style="font-weight:400">(optional)</span><input name="phone" type="tel"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them a welcome with how to sign in</label>
         <button class="primary" type="submit">Add tutor</button></form></div>
-    <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. If someone stops tutoring, press <b>Remove access</b> so they can no longer see students.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="3" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Families you add, plus anyone who signs in on their own. Your own account appears here too if you sign in with another email for testing.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th></th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. Press ✎ to edit a tutor's name, phone or pay, or to remove their access. <b>Pay is only visible to you.</b> This month = classes logged since the 1st × their pay.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th>Pay</th><th>This month</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="5" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="parents"><h2>Parents (${parents.length})</h2><p class="note">Families you add, plus anyone who signs in on their own. Press ✎ to edit a parent's name or phone, or to remove the family.</p><div class="scroll"><table class="table"><thead><tr><th>Parent</th><th>Children</th><th>Card</th><th></th></tr></thead><tbody>${parentRows || `<tr><td colspan="4" class="note">No parents yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
       <button id="previewreports" type="button">Email me a preview of this week's reports</button>
       <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
@@ -1028,6 +1048,22 @@ async function adminView(me) {
     if (!confirm(`Remove ${b.dataset.name}'s tutor access? They'll no longer see any students. Reassign their students first.`)) return;
     try { await rpc("admin_set_role", { p_user: b.dataset.untutor, p_role: "parent" }); show("Tutor access removed."); }
     catch (err) { show(err.message, "bad"); }
+  });
+  app.querySelectorAll("[data-editperson]").forEach((b) => b.onclick = () => { editPerson = b.dataset.editperson; route(); });
+  app.querySelectorAll("[data-personcancel]").forEach((b) => b.onclick = () => { editPerson = null; route(); });
+  app.querySelectorAll("[data-personsave]").forEach((b) => b.onclick = async () => {
+    const tr = b.closest("tr"), g = (n) => tr.querySelector(`[name=${n}]`), id = b.dataset.personsave;
+    b.disabled = true;
+    try {
+      await rpc("admin_set_profile", { p_user: id, p_name: g("full_name").value.trim(), p_phone: g("phone").value.trim() });
+      if (g("pay")) {
+        const v = g("pay").value.trim(), cents = v === "" ? null : Math.round(Number(v) * 100);
+        if (cents != null && !(cents >= 0 && cents <= 100000)) throw new Error("Pay should be between $0 and $1,000 per hour.");
+        const { error } = await sb.from("tutor_pay").upsert({ tutor_id: id, rate_cents: cents, updated_at: new Date().toISOString() });
+        if (error) throw new Error(error.message);
+      }
+      editPerson = null; show("Saved.");
+    } catch (err) { b.disabled = false; show(err.message, "bad"); }
   });
   app.querySelectorAll("[data-rename]").forEach((b) => b.onclick = async () => {
     const n = prompt("New name:", b.dataset.name || ""); if (n == null || !n.trim()) return;
