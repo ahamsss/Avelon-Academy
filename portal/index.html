@@ -178,7 +178,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const money = (c) => "$" + ((c || 0) / 100).toFixed(2);
 const today = () => new Date().toLocaleDateString("en-CA");
 const pill = (s) => {
-  const m = { pending: ["Waiting for confirmation", "warn"], approved: ["Confirmed", "ok"], flagged: ["Flagged", "bad"], void: ["Not charged", ""],
+  const m = { pending: ["Logged", "blue"], approved: ["Billed", "ok"], flagged: ["Problem reported", "bad"], void: ["Not charged", ""],
               succeeded: ["Paid", "ok"], failed: ["Failed", "bad"], processing: ["Processing", "warn"],
               trial: ["Trial", "blue"], continuing: ["Enrolled", "ok"], ended: ["Stopped", ""] }[s] || [s, ""];
   return `<span class="pill ${m[1]}">${esc(m[0])}</span>`;
@@ -363,7 +363,7 @@ function loginView() {
   document.body.classList.remove("dashmode");
   document.getElementById("signout").classList.add("hidden");
   document.getElementById("who").textContent = "";
-  hero("My Avelon", 'Welcome <span class="star">back.</span>', "Sign in to confirm classes, see notes and homework, and manage payments.");
+  hero("My Avelon", 'Welcome <span class="star">back.</span>', "Sign in to see class times, notes and homework, message your tutor, and manage payments.");
   const qs = new URLSearchParams(location.search);
   if (qs.get("code")) return codeView(qs.get("email") || "", false);
   app.innerHTML = `
@@ -467,7 +467,7 @@ async function myView(me, own, asStudent) {
   const holder = own.length > 0 || !asStudent.length;
   const kids = own.concat(asStudent.filter((k) => !own.some((o) => o.id === k.id))).filter((k) => k.active !== false);
   const [{ data: classes }, { data: pays }, sf] = await Promise.all([
-    sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id").order("class_date", { ascending: false }).limit(100),
+    sb.from("sessions").select("id, student_id, class_date, minutes, amount_cents, status, trial_number, notes, homework, charge_id, created_at").order("class_date", { ascending: false }).limit(100),
     holder ? sb.from("charges").select("*").order("created_at", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
     loadSF(),
   ]);
@@ -480,11 +480,12 @@ async function myView(me, own, asStudent) {
   const isOwn = (k) => k.parent_id === me.id;
   const mine = (classes || []).filter((c) => byId[c.student_id]);
   const doneCount = (id) => mine.filter((c) => c.student_id === id && c.status !== "void").length;
-  const pendingCount = mine.filter((c) => c.status === "pending").length;
+  const H48 = 48 * 3600000;
+  const canReport = (c) => c.status === "pending" && Date.now() - Date.parse(c.created_at) < H48;
 
   const card = me.card_last4
     ? `<p>Card on file: <b>${esc((me.card_brand || "card").toUpperCase())} •••• ${esc(me.card_last4)}</b></p><button id="addcard" type="button">Change card</button>`
-    : `<p class="note">Add a card to keep classes going after the trial. We charge it every Monday for the previous week's confirmed classes.</p><button id="addcard" class="primary" type="button">Add a card</button>`;
+    : `<p class="note">Add a card to keep classes going after the trial. We charge it every Monday for the classes logged the week before.</p><button id="addcard" class="primary" type="button">Add a card</button>`;
 
   // Notes and homework: the student always sees their own. The account holder sees them too,
   // except for a Grade 6+ student who has their own login (their notes go to them).
@@ -499,10 +500,11 @@ async function myView(me, own, asStudent) {
       else if ((c.trial_number === 2 || c.trial_number === 3) && k.trial_status !== "continuing") amt = `${money(c.amount_cents)}<br><span class="note">only if you continue</span>`;
       if (c.status === "void") amt = "—";
     }
-    const act = c.status === "pending"
-      ? `<div class="actions"><button class="small primary" data-ok="${c.id}" type="button">Confirm</button><button class="small" data-flag="${c.id}" type="button">Something's wrong</button></div>` : "";
+    // Only the parent can report a problem, and only within 48 hours of the class being logged.
+    const act = holder && isOwn(k) && canReport(c)
+      ? `<button class="lk" data-flag="${c.id}" type="button" style="margin-left:-6px">Report a problem</button><span class="note" style="font-size:12px">${Math.max(1, Math.ceil((H48 - (Date.now() - Date.parse(c.created_at))) / 3600000))}h left</span>` : "";
     const details = showNotes(k) ? [c.notes && `<b>Covered:</b> ${esc(c.notes)}`, c.homework && `<b>Homework:</b> ${esc(c.homework)}`].filter(Boolean).join("<br>") : "";
-    return `<tr><td>${esc(c.class_date)}</td>${withName ? `<td>${esc(kname(k))}</td>` : ""}<td>${c.minutes} min</td>${holder ? `<td>${amt}</td>` : ""}<td>${pill(c.status)}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
+    return `<tr><td>${esc(c.class_date)}</td>${withName ? `<td>${esc(kname(k))}</td>` : ""}<td>${c.minutes} min</td>${holder ? `<td>${amt}</td>` : ""}<td>${holder ? pill(c.status) : c.status === "flagged" ? '<span class="pill warn">Under review</span>' : '<span class="pill blue">Logged</span>'}${act ? "<br>" + act : ""}${details ? `<div class="note" style="margin-top:6px">${details}</div>` : ""}</td></tr>`;
   };
   const classTable = (list, withName) => `<div class="scroll"><table class="table"><thead><tr><th>Date</th>${withName ? "<th>Student</th>" : ""}<th>Length</th>${holder ? "<th>Amount</th>" : ""}<th>Status</th></tr></thead><tbody>${list.map((c) => classRow(c, withName)).join("") || `<tr><td colspan="5" class="note">No classes yet.</td></tr>`}</tbody></table></div>`;
 
@@ -531,14 +533,14 @@ async function myView(me, own, asStudent) {
 
   const payRows = (pays || []).map((p) => `<tr><td>${new Date(p.created_at).toLocaleDateString("en-CA")}</td><td>${money(p.amount_cents)} CAD</td><td>${pill(p.status)}${p.failure_message ? `<div class="note">${esc(p.failure_message)}</div>` : ""}</td></tr>`).join("");
   const first = holder ? (me.full_name || "there").split(" ")[0] : (kids[0]?.first_name || "there");
-  hero("My Avelon", `Hi ${esc(first)}<span class="star">.</span>`, holder ? "Class times, notes, confirmations and payments in one place." : "Your class times, Google Meet links, notes and files.");
+  hero("My Avelon", `Hi ${esc(first)}<span class="star">.</span>`, holder ? "Class times, notes, messages and payments in one place." : "Your class times, Google Meet links, notes and files.");
 
   const threads = kids.map((k) => ({ id: k.id, title: `${k.first_name}${k.subject ? " · " + k.subject : ""}`, sub: k.tutor_id && TN[k.tutor_id] ? `with ${TN[k.tutor_id]}` : "Tutor coming soon" }));
   const SECTIONS = [["m-overview", "Overview"], ["m-schedule", "Schedule"], ["m-messages", "Messages", unreadAll(M, me, threads)]]
-    .concat(learners.map((g, i) => [`m-s${i}`, esc(g[0].first_name)]))
-    .concat([["m-classes", "All classes", pendingCount]])
+    .concat(learners.map((g, i) => [`m-s${i}`, holder ? esc(g[0].first_name) : (learners.length > 1 ? esc(g[0].first_name) : "My classes")]))
+    .concat([["m-classes", "Class log"]])
     .concat(holder ? [["m-payments", "Payments"], ["m-details", "Your details"], ["m-add", "Add a student"]] : []);
-  const T = [["m-schedule", nextClass(sf.slots, byId), "next class", false, true], ["m-classes", pendingCount, "classes to confirm", pendingCount > 0]];
+  const T = [["m-schedule", nextClass(sf.slots, byId), "next class", false, true], ["m-classes", mine.filter((c) => c.status !== "void").length, "classes logged"]];
   if (holder) T.push([kids.length ? "m-s0" : "m-add", learners.length, learners.length === 1 ? "student" : "students"], ["m-payments", me.card_last4 ? "•••• " + esc(me.card_last4) : "None", "card on file", !me.card_last4, true]);
 
   app.innerHTML = `
@@ -548,7 +550,7 @@ async function myView(me, own, asStudent) {
     <div class="panel" id="m-schedule"><h2>Upcoming classes</h2>${upcomingHtml(sf.slots, byId, { days: 14, empty: "No classes scheduled yet. Once a tutor is matched, class times and Google Meet links appear here." })}</div>
     <div class="panel" id="m-messages"><h2>Messages</h2><p class="note">Message ${kids.length ? "your tutor" : "us"} about classes: rescheduling, questions about homework, or anything else.</p><div id="msgbox"></div></div>
     ${learners.map(studentPanel).join("")}
-    <div class="panel" id="m-classes"><h2>All classes</h2><p class="note">Classes are charged at the booked length. Classes not confirmed or flagged within 24 hours are confirmed automatically.</p>${classTable(mine, kids.length > 1)}</div>
+    <div class="panel" id="m-classes"><h2>Class log</h2><p class="note">${holder ? "Each class your tutor logs shows here. There's nothing to confirm: classes are charged at the booked length and billed after 48 hours. If something isn't right, press Report a problem within 48 hours and we won't charge that class until it's sorted." : "Every class your tutor has logged, with notes and homework."}</p>${classTable(mine, kids.length > 1)}</div>
     ${holder ? `
     <div class="panel" id="m-payments"><h2>Payment card</h2>${card}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="m-details"><h2>Your details</h2>
@@ -588,13 +590,9 @@ async function myView(me, own, asStudent) {
       show(d === "continuing" ? "Wonderful, you're enrolled!" : "Okay, classes will stop. The trial classes are free."); }
     catch (err) { show(err.message, "bad"); }
   });
-  app.querySelectorAll("[data-ok]").forEach((b) => b.onclick = async () => {
-    try { await rpc("review_session", { p_session: b.dataset.ok, p_action: "approve" }); show("Class confirmed. Thank you!"); }
-    catch (err) { show(err.message, "bad"); }
-  });
   app.querySelectorAll("[data-flag]").forEach((b) => b.onclick = async () => {
-    const r = prompt("What went wrong? (for example: the class didn't happen)");
-    if (!r) return;
+    const r = prompt("What wasn't right? (for example: the class didn't happen, or it was shorter)");
+    if (!r || !r.trim()) return;
     try { await rpc("review_session", { p_session: b.dataset.flag, p_action: "flag", p_reason: r }); show("Thanks for letting us know. We'll look into it and won't charge this class until it's sorted."); }
     catch (err) { show(err.message, "bad"); }
   });
@@ -723,15 +721,15 @@ async function tutorView(me) {
   const byId = Object.fromEntries((kids || []).map((k) => [k.id, k]));
   const name = Object.fromEntries((kids || []).map((k) => [k.id, k.first_name]));
   const rows = (classes || []).map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(name[c.student_id] || "")}</td><td>${c.minutes} min</td><td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}</td></tr>`).join("");
-  hero("Tutor portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Log each class right after it ends. The family gets an email to confirm it.");
+  hero("Tutor portal", `Hi ${esc((me.full_name || "there").split(" ")[0])}<span class="star">.</span>`, "Log each class right after it ends. The family gets an email with your notes.");
   const waiting = (classes || []).filter((c) => c.status === "pending").length, flagged = (classes || []).filter((c) => c.status === "flagged").length;
   const weekN = sf.slots.filter((x) => byId[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
   const T_SECTIONS = [["t-overview", "Overview"], ["t-week", "Your week", weekN], ["t-log", "Log a class"], ["t-messages", "Messages", unreadAll(M, me, tThreads)], ["t-students", "Your students"], ["t-recent", "Recent classes", flagged], ["t-details", "Your details"]];
   app.innerHTML = `
     ${flash}
     ${dash(T_SECTIONS, `
-    <div class="panel" id="t-overview"><h2>Overview</h2>${tiles([["t-week", nextClass(sf.slots, byId), "next class", false, true], ["t-week", weekN, "classes this week"], ["t-students", (kids || []).length, "students"], ["t-recent", waiting, "waiting for family to confirm"], ["t-recent", flagged, "flagged by a family", flagged > 0]])}
-      <button class="primary" type="button" data-tab="t-log" style="margin-top:18px">Log a class</button></div>
+    <div class="panel" id="t-overview"><h2>Overview</h2>${tiles([["t-week", nextClass(sf.slots, byId), "next class", false, true], ["t-week", weekN, "classes this week"], ["t-students", groupLearners((kids || []).filter((k) => k.active !== false)).length, "students"], ["t-recent", flagged, "problems reported", flagged > 0]])}
+</div>
     <div class="panel" id="t-week"><h2>Your week</h2>${upcomingHtml(sf.slots, byId, { days: 7, empty: "No classes scheduled this week. Add each student's weekly time below." })}</div>
     <div class="panel" id="t-log"><h2>Log a class</h2>
       ${(kids || []).length ? `<form id="log" class="form">
@@ -742,7 +740,7 @@ async function tutorView(me) {
         <label>What you covered <span class="note" style="font-weight:400">(goes into the student's weekend report)</span><textarea name="notes" required placeholder="e.g. Fractions: adding with different denominators"></textarea></label>
         <label>Homework <span class="note" style="font-weight:400">(listed under "To practise next")</span><textarea name="homework" placeholder="e.g. Worksheet questions 1–10"></textarea></label>
         <label>Plan for next week <span class="note" style="font-weight:400">(optional, listed under "Next week")</span><textarea name="next_plan" placeholder="e.g. Subtracting fractions, then a short quiz"></textarea></label>
-        <button class="primary" type="submit">Log class and send confirmation</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
+        <button class="primary" type="submit">Log class</button></form>` : `<p class="note">No students assigned to you yet.</p>`}
     </div>
     <div class="panel" id="t-messages"><h2>Messages</h2><p class="note">Each conversation is with the student's family. The parent, the student and Avelon can read it.</p><div id="tmsgbox"></div></div>
     <div class="panel" id="t-students"><h2>Your students</h2>${(kids || []).map((k) => `<details class="kidbox"><summary><b>${esc(k.first_name)}</b> <span class="note">${esc([k.grade, k.subject].filter(Boolean).join(" · "))}</span></summary>${slotsHtml(k, sf.slots, true)}${filesHtml(k, sf.files, me)}</details>`).join("") || `<p class="note">No students assigned to you yet.</p>`}</div>
@@ -762,7 +760,7 @@ async function tutorView(me) {
   const form = document.getElementById("log");
   if (form) form.onsubmit = async (e) => {
     e.preventDefault(); const btn = form.querySelector("button"); btn.disabled = true;
-    try { await call("log-session", Object.fromEntries(new FormData(form))); show("Class logged. The family has been asked to confirm."); }
+    try { await call("log-session", Object.fromEntries(new FormData(form))); show("Class logged. The family has been emailed."); }
     catch (err) { btn.disabled = false; show(err.message, "bad"); }
   };
 }
@@ -789,7 +787,8 @@ async function adminView(me) {
   const studentEmails = new Set((kids || []).map((k) => (k.student_email || "").toLowerCase()).filter(Boolean));
   const parents = (people || []).filter((p) => p.role === "parent" && !((kids || []).every((k) => k.parent_id !== p.id) && studentEmails.has((p.email || "").toLowerCase())));
   const admins = (people || []).filter((p) => p.role === "admin");
-  const open = (classes || []).filter((c) => c.status === "flagged" || c.status === "pending");
+  // Needs attention = classes a family reported a problem with. Logged classes bill themselves after 48 hours.
+  const open = (classes || []).filter((c) => c.status === "flagged");
   const who = (p) => esc(p?.full_name || p?.email || "");
   const tutorLabel = (t) => esc(t.full_name ? `${t.full_name} · ${t.email}` : t.email);
   const roleSel = (p) => `<select data-role="${p.id}" style="width:auto">${["parent", "tutor", "admin"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select>`;
@@ -804,7 +803,7 @@ async function adminView(me) {
 
   // Classes needing attention
   const openRows = open.map((c) => `<tr><td>${esc(c.class_date)}</td><td>${esc(K[c.student_id]?.first_name || "")}</td><td>${who(P[c.tutor_id])}</td><td>${c.minutes} min · ${money(c.amount_cents)}</td>
-    <td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}<div class="actions" style="margin-top:6px"><button class="small" data-set="approved" data-id="${c.id}" type="button">Approve</button><button class="small" data-set="void" data-id="${c.id}" type="button">Don't charge</button></div></td></tr>`).join("");
+    <td>${pill(c.status)}${c.flag_reason ? `<div class="note">${esc(c.flag_reason)}</div>` : ""}<div class="actions" style="margin-top:6px"><button class="small" data-set="approved" data-id="${c.id}" type="button">Bill it</button><button class="small" data-set="void" data-id="${c.id}" type="button">Don't charge</button></div></td></tr>`).join("");
 
   // Students
   const groups = {};
@@ -866,7 +865,7 @@ async function adminView(me) {
   const weekCount = sf.slots.filter((x) => K[x.student_id]).reduce((a, x) => a + occurrences(x, Date.now(), 7).length, 0);
   const activeKids = (kids || []).filter((k) => k.active).length;
   const storagePct = usage ? Math.max(Math.round(usage.db_bytes / (500 * 1048576) * 100), Math.round(usage.file_bytes / 1073741824 * 100)) : 0;
-  // Billing: confirmed, not yet charged, grouped by family. Trial classes 2–3 only once the family continues.
+  // Billing: past the 48-hour window (approved), not yet charged, grouped by family. Trial classes 2–3 only once the family continues.
   const billable = (unbilled || []).filter((c) => K[c.student_id] && (!(c.trial_number === 2 || c.trial_number === 3) || K[c.student_id].trial_status === "continuing"));
   const byFam = {};
   billable.forEach((c) => { const pid = K[c.student_id].parent_id; (byFam[pid] ||= { n: 0, total: 0, kids: new Set() }); byFam[pid].n++; byFam[pid].total += c.amount_cents; byFam[pid].kids.add(K[c.student_id].first_name); });
@@ -885,7 +884,7 @@ async function adminView(me) {
     <div class="panel" id="requests"><h2>Trial requests${newReqs ? ` <span class="pill blue">${newReqs} new</span>` : ""}</h2><p class="note">From the "Start with 3 trial classes" form on the homepage. Each family already got the welcome email. After your call, press <b>Set up family</b> to create their account and student. Booked or closed requests can be removed.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent/student</th><th>Grade</th><th>Status</th><th></th></tr></thead><tbody>${reqRows || `<tr><td colspan="5" class="note">No requests yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="week"><h2>This week</h2>${upcomingHtml(sf.slots, K, { days: 7, empty: "No classes scheduled this week.", extra: (k) => "Tutor: " + (who(P[k.tutor_id]) || "none") })}</div>
     <div class="panel" id="messages"><h2>Messages</h2><p class="note">Every conversation between tutors and families. Messages that look like they share a phone number, email, another app or an outside link (YouTube, Khan Academy and Meet links are fine) are flagged (amber) and emailed to you. Messages you send show as "Avelon Academy".</p><div id="amsgbox"></div></div>
-    <div class="panel" id="attention"><h2>Classes needing attention (${open.length})</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="attention"><h2>Problems reported (${open.length})</h2><p class="note">A family reported a problem with these classes within 48 hours. Sort it out with them, then bill the class or choose not to charge it.</p><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Student</th><th>Tutor</th><th>Class</th><th>Status</th></tr></thead><tbody>${openRows || `<tr><td colspan="5" class="note">Nothing to review.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="students"><h2>Students (${kidGroups.length})</h2><p class="note">Press ✎ next to a name to edit the student, change tutor or rate, add a subject or remove them. Tutors can only log classes once both are set. Founding families (first 10): $25/hour one-on-one; small group and Bangla: $20/hour.</p>
       ${matchable.length ? `<div class="msg info">Possible small groups: ${matchable.map(([g, n]) => `<b>${esc(g)}</b> (${n.map(esc).join(", ")})`).join("; ")}</div>` : ""}
       <div class="scroll"><table class="table"><thead><tr><th>Student</th><th>Tutor</th><th>$/hour</th><th>Status</th></tr></thead><tbody>${kidRows || `<tr><td colspan="6" class="note">No students yet.</td></tr>`}</tbody></table></div></div>
@@ -914,10 +913,10 @@ async function adminView(me) {
     <div class="panel" id="reports"><h2>Weekend reports</h2><p class="note">Every Saturday morning, each student with classes that week gets one email to the email on file (the student's own email if added, otherwise the parent's): what was covered, from the tutor's class notes, and what to practise. Students with no classes that week get nothing.</p>
       <button id="previewreports" type="button">Email me a preview of this week's reports</button>
       <h3 style="margin-top:22px">Recently sent</h3><div class="scroll"><table class="table"><thead><tr><th>Week of</th><th>Student</th><th>Sent to</th><th>Classes</th></tr></thead><tbody>${(reports || []).map((r) => `<tr><td>${esc(r.week_start)}</td><td>${esc(K[r.student_id]?.first_name || "")}</td><td>${esc(r.sent_to)}</td><td>${r.class_count}</td></tr>`).join("") || `<tr><td colspan="4" class="note">None sent yet. The first ones go out on Saturday.</td></tr>`}</tbody></table></div></div>
-    <div class="panel" id="billing"><h2>Billing</h2><p class="note">Every Monday, each family is charged automatically for their confirmed classes that haven't been charged yet. Only families listed below have anything to charge. To charge some now (for example after a family fixes a failed card), tick them and press Charge selected.</p>
+    <div class="panel" id="billing"><h2>Billing</h2><p class="note">Every Monday, each family is charged automatically for classes logged more than 48 hours ago (with no problem reported) that haven't been charged yet. Only families listed below have anything to charge. To charge some now (for example after a family fixes a failed card), tick them and press Charge selected.</p>
       ${readyRows ? `<div class="scroll"><table class="table"><thead><tr><th style="width:36px"><input type="checkbox" id="billall" checked aria-label="Select all"></th><th>Family</th><th>Classes</th><th>Amount</th><th>Card</th></tr></thead><tbody>${readyRows}</tbody></table></div>
       <button id="bill" class="primary" type="button" style="margin-top:14px">Charge selected</button>` : `<p class="note"><b>Nothing to charge right now.</b></p>`}
-      ${waitingConfirm ? `<p class="note">${waitingConfirm} more ${waitingConfirm === 1 ? "class is" : "classes are"} waiting for the family to confirm (auto-confirmed after 24 hours).</p>` : ""}
+      ${waitingConfirm ? `<p class="note">${waitingConfirm} more ${waitingConfirm === 1 ? "class is" : "classes are"} inside the 48-hour window for the family to report a problem. They're added automatically once it passes.</p>` : ""}
       <h3 style="margin-top:26px">Payments</h3><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Parent</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="4" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="storage"><h2>Storage</h2>${usageHtml}<p class="note">Free plan limits. Class files are deleted automatically 3 months after upload. If either bar passes 75%, you'll get an email on Monday.</p></div>
     </div></div>`;

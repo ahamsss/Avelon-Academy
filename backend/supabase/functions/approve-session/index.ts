@@ -1,4 +1,5 @@
-// Avelon Academy: the "Yes, confirm class" / "Something's wrong" links from the email.
+// Avelon Academy: the "Report a problem with this class" link from the class-logged email.
+// Classes don't need confirming: they're billed automatically after 48 hours unless reported.
 // Supabase > Edge Functions > name: approve-session  (turn "Verify JWT" OFF; the secret link token is the check)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -19,21 +20,20 @@ Deno.serve(async (req) => {
     if (!UUID.test(String(token))) return json({ error: "This link isn't valid." }, 400);
 
     const { data: s } = await db.from("sessions")
-      .select("id, status, class_date, minutes, students(first_name)")
+      .select("id, status, class_date, minutes, created_at, students(first_name)")
       .eq("approve_token", token).single();
     if (!s) return json({ error: "This link isn't valid." }, 404);
 
     const info = {
       student: (s as any).students?.first_name ?? "", date: s.class_date, minutes: s.minutes, status: s.status,
+      hours_left: Math.max(0, Math.ceil(48 - (Date.now() - Date.parse(s.created_at)) / 3600000)),
     };
     if (action === "view" || s.status !== "pending") return json(info);
 
-    if (action === "approve") {
-      await db.from("sessions").update({ status: "approved", approved_by: "family", approved_at: new Date().toISOString() })
-        .eq("id", s.id).eq("status", "pending");
-      return json({ ...info, status: "approved" });
-    }
+    // Old emails had a "confirm" button. Confirming is no longer needed, so it just shows the class.
+    if (action === "approve") return json(info);
     if (action === "flag") {
+      if (info.hours_left <= 0) return json({ ...info, status: "approved" });
       const r = String(reason ?? "").trim();
       if (r.length < 3) return json({ error: "Please tell us briefly what went wrong." }, 400);
       await db.from("sessions").update({ status: "flagged", flag_reason: r.slice(0, 500) })

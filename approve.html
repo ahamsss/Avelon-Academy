@@ -5,7 +5,7 @@
 <meta name="color-scheme" content="only light">
 <meta name="darkreader-lock">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Confirm your class — Avelon Academy</title>
+<title>Report a problem with a class — Avelon Academy</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,32 +47,27 @@ function api(body){
 function done(d){
   if (d.error) { out.innerHTML = "<h1>Hmm.</h1><p>" + esc(d.error) + "</p>"; return; }
   var what = esc(d.student) + "'s " + d.minutes + "-minute class on " + esc(d.date);
-  if (d.status === "approved") out.innerHTML = "<h1>Thanks, class confirmed.</h1><p>" + what + " is confirmed. See notes and homework any time in the <a href='portal/'>portal</a>.</p>";
+  if (d.status === "approved") out.innerHTML = "<h1>This class is already billed.</h1><p>The 48 hours to report a problem with " + what + " have passed. If something wasn't right, message us in <a href='portal/'>My Avelon</a> or email contact@avelonacademy.ca and we'll sort it out.</p>";
   else if (d.status === "flagged") out.innerHTML = "<h1>Thanks for telling us.</h1><p>We've paused " + what + " and won't charge it until we've sorted it out. We'll be in touch.</p>";
   else if (d.status === "void") out.innerHTML = "<h1>No action needed.</h1><p>" + what + " won't be charged.</p>";
-  else showChoice(d);
-}
-function showChoice(d){
-  var what = esc(d.student) + "'s " + d.minutes + "-minute class on " + esc(d.date);
-  out.innerHTML = "<h1>Confirm this class?</h1><p>" + what + ".</p><div class='actions'><button class='primary' id='yes'>Yes, confirm class</button><button id='no'>Something's wrong</button></div>";
-  document.getElementById("yes").onclick = function(){ api({token: token, action: "approve"}).then(done); };
-  document.getElementById("no").onclick = function(){ showFlag(d); };
+  else showFlag(d);
 }
 function showFlag(d){
-  out.innerHTML = "<h1>What went wrong?</h1><p>" + esc(d.student) + "'s class on " + esc(d.date) + ". We won't charge it until we've sorted it out.</p>" +
-    "<label for='why' style='font-weight:600'>Tell us briefly</label><textarea id='why' placeholder='e.g. The class was only 30 minutes'></textarea>" +
-    "<div class='actions'><button class='primary' id='send'>Send</button><button id='back'>Back</button></div>";
+  var left = d.hours_left ? " You have about " + d.hours_left + " hour" + (d.hours_left === 1 ? "" : "s") + " left to report it." : "";
+  out.innerHTML = "<h1>Report a problem</h1><p>" + esc(d.student) + "'s " + d.minutes + "-minute class on " + esc(d.date) + ". We won't charge it until we've sorted it out." + left + "</p>" +
+    "<label for='why' style='font-weight:600'>What wasn't right?</label><textarea id='why' placeholder='e.g. The class was only 30 minutes'></textarea>" +
+    "<div class='actions'><button class='primary' id='send'>Send</button></div>" +
+    "<p style='color:#5A5F6E;font-size:14px'>Everything fine? You don't need to do anything. The class is billed automatically after 48 hours.</p>";
   document.getElementById("send").onclick = function(){
     api({token: token, action: "flag", reason: document.getElementById("why").value}).then(function(r){ if (r.error) { alert(r.error); return; } done(r); });
   };
-  document.getElementById("back").onclick = function(){ showChoice(d); };
 }
 if (!token) { out.innerHTML = "<h1>Link not valid</h1><p>Please use the link from your email.</p>"; }
 else {
   api({token: token, action: "view"}).then(function(d){
     if (d.error || d.status !== "pending") return done(d);
-        if (action === "flag") return showFlag(d);
-    showChoice(d);
+    if (!d.hours_left) return done({ student: d.student, minutes: d.minutes, date: d.date, status: "approved" });
+    showFlag(d);
   }).catch(function(){ out.innerHTML = "<h1>Couldn't connect</h1><p>Please try again in a moment.</p>"; });
 }
 </script>

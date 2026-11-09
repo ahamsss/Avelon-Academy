@@ -50,7 +50,7 @@ function inviteEmail(first: string, kind: "tutor" | "family" | "student", email:
     ? ["You're now set up as an Avelon tutor. Once you log in, you'll see the students you're matched with, their weekly class times and Google Meet links, and the place to log each class right after it ends."]
     : kind === "student"
     ? ["Your parent or guardian set up your Avelon account. Once you log in, you'll see your class times and Google Meet links, plus your notes, homework and files."]
-    : [`Your Avelon account${student ? " for " + esc(student) : ""} is ready. Once you log in, you'll see class times and Google Meet links, confirm classes, read notes and homework, and manage payments.`];
+    : [`Your Avelon account${student ? " for " + esc(student) : ""} is ready. Once you log in, you'll see class times and Google Meet links, read notes and homework, message your tutor, and manage payments.`];
   const how = "Press <b>Log in</b> below and type in the code above. Or go to avelonacademy.ca, click <b>Log in</b> at the top right, then <b>I have a code</b>. There's no password to remember.";
   const codeBox = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:4px 0 22px"><tr><td style="padding:20px 22px;text-align:center">
       <div style="font:700 12px Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#1D4ED8;margin-bottom:8px">Your sign-in code</div>

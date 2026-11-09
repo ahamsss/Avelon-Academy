@@ -1,4 +1,5 @@
-// Avelon Academy: a tutor logs a class; the student and parent get a "confirm this class" email.
+// Avelon Academy: a tutor logs a class; the parent gets a short "class logged" email.
+// Nothing to confirm: the class is billed automatically after 48 hours unless the parent reports a problem first.
 // Supabase > Edge Functions > name: log-session  (turn "Verify JWT" OFF; this code checks the login itself)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(class_date)) return json({ error: "Invalid date." }, 400);
 
     const { data: student } = await db.from("students")
-      .select("id, first_name, grade, parent_id, student_email, tutor_id, rate_cents, trial_status, active")
+      .select("id, first_name, grade, subject, parent_id, student_email, tutor_id, rate_cents, trial_status, active")
       .eq("id", student_id).single();
     if (!student || student.tutor_id !== tutor.id) return json({ error: "This student isn't assigned to you." }, 403);
     if (!student.active || student.trial_status === "ended") return json({ error: "This student is no longer active." }, 400);
@@ -77,41 +78,34 @@ Deno.serve(async (req) => {
     }).select("id, approve_token").single();
     if (error) throw error;
 
-    // Email the student (if we have their email) and the parent.
-    const { data: parent } = await db.from("profiles").select("email").eq("id", student.parent_id).single();
-    const to = [parent?.email, student.student_email].filter(Boolean) as string[];
-    const link = (a: string) => `${SITE}/approve.html?t=${session.approve_token}&a=${a}`;
+    // Email the parent (the account holder). Students see their notes in My Avelon and the weekend report.
+    const { data: parent } = await db.from("profiles").select("email, full_name").eq("id", student.parent_id).single();
+    const reportLink = `${SITE}/approve.html?t=${session.approve_token}&a=flag`;
     const tutorFirst = (tutor.full_name || "Your tutor").split(" ")[0];
-    const trialLine = trial_number ? `<p style="color:#5A5F6E">Trial class ${trial_number} of 3${trial_number === 1 ? " (free)" : ""}.</p>` : "";
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0B0D12">
-        <h2 style="margin:0 0 6px">Please confirm today's class</h2>
-        <p>${esc(student.first_name)} had a ${mins}-minute class with ${esc(tutorFirst)} on ${class_date}.</p>
-        ${trialLine}
-        ${notes ? `<p><b>What we covered:</b><br>${esc(String(notes))}</p>` : ""}
-        ${homework ? `<p><b>Homework:</b><br>${esc(String(homework))}</p>` : ""}
-        <p style="margin:26px 0">
-          <a href="${link("approve")}" style="background:#2563EB;color:#fff;padding:13px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Yes, confirm class</a>
-          &nbsp;
-          <a href="${link("flag")}" style="color:#1D4ED8">Something's wrong</a>
-        </p>
-        <p style="color:#5A5F6E;font-size:13px">If we don't hear from you within 24 hours, the class is confirmed automatically.</p>
-        <p style="color:#5A5F6E;font-size:13px">Avelon Academy · ${SITE.replace("https://", "")}</p>
-      </div>`;
-    // Grades 1-5: parents get the class notes. Grade 6+: notes go only to the student (if we have their email);
-    // the parent still gets the date and length so they can confirm what they're paying for.
+    // Grades 1-5: the parent sees the class notes. Grade 6+ with their own login: notes stay with the student.
     const gradeNum = parseInt(String((student as any).grade ?? "").replace(/\D/g, ""), 10);
     const teen = gradeNum >= 6 && !!student.student_email;
-    const subject = `Confirm ${student.first_name}'s class on ${class_date}`;
-    if (teen) {
-      const parentHtml = html
-        .replace(/<p><b>What we covered:<\/b>[\s\S]*?<\/p>/, "")
-        .replace(/<p><b>Homework:<\/b>[\s\S]*?<\/p>/, "");
-      if (parent?.email) await sendEmail([parent.email], subject, parentHtml);
-      await sendEmail([student.student_email as string], subject, html);
-    } else if (to.length) {
-      await sendEmail(to, subject, html);
-    }
+    const fee = trial_number === 1 ? "Free (trial class 1 of 3)" : trial_number ? `Trial class ${trial_number} of 3` : "";
+    const p = (t: string) => `<p style="font:15px/1.6 Arial,sans-serif;color:#0B0D12;margin:0 0 14px">${t}</p>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light only"></head>
+<body style="margin:0;padding:0;background:#F1F1EE"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE"><tr><td align="center" style="padding:32px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
+  <tr><td style="background:#0E1528;border-radius:20px 20px 0 0;padding:30px 36px 26px">
+    <img src="${SITE}/email-logo.png" width="205" height="35" alt="Avelon Academy" style="display:block;border:0;width:205px;height:35px;color:#F3EFE6;font:800 20px Arial,sans-serif">
+    <div style="font:700 26px/1.2 Arial,sans-serif;color:#FFFFFF;margin-top:24px">Class logged<span style="color:#E0B354">.</span></div>
+    <div style="font:15px/1.5 Arial,sans-serif;color:#C3CBDD;margin-top:6px">${esc(student.first_name)}${(student as any).subject ? " &middot; " + esc((student as any).subject) : ""} &middot; ${esc(class_date)} &middot; ${mins} min with ${esc(tutorFirst)}</div>
+  </td></tr>
+  <tr><td style="background:#FFFFFF;padding:28px 36px 10px">
+    ${fee ? p(`<b>${fee}</b>`) : ""}
+    ${!teen && notes ? p(`<b>What we covered:</b><br>${esc(String(notes)).replace(/\n/g, "<br>")}`) : ""}
+    ${!teen && homework ? p(`<b>Homework:</b><br>${esc(String(homework)).replace(/\n/g, "<br>")}`) : ""}
+    ${teen ? p(`${esc(student.first_name)} can see the class notes and homework in My Avelon.`) : ""}
+    ${p("Nothing to do. If something isn't right, report it within 48 hours and we won't charge this class until it's sorted. After 48 hours it's billed on your next Monday payment.")}
+    <p style="margin:6px 0 26px"><a href="${reportLink}" style="color:#1D4ED8;font:700 15px Arial,sans-serif">Report a problem with this class</a></p>
+  </td></tr>
+  <tr><td style="background:#0E1528;border-radius:0 0 20px 20px;padding:20px 36px"><div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF">All classes and notes: <a href="${SITE}/portal/" style="color:#F3EFE6">log in at ${SITE.replace("https://", "")}</a></div></td></tr>
+</table></td></tr></table></body></html>`;
+    if (parent?.email) await sendEmail([parent.email], `${student.first_name}'s class on ${class_date} is logged`, html);
 
     return json({ ok: true, id: session.id });
   } catch (e) {

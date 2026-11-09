@@ -435,7 +435,7 @@ Avelon Academy
 <details class="reveal"><summary>What does my child need?</summary><p>A laptop or tablet with a camera, a quiet spot, and their class notes or worksheet.</p></details>
 <details class="reveal"><summary>What if the tutor isn't a good fit?</summary><p>Tell us and we'll match you with another tutor.</p></details>
 <details class="reveal"><summary>Can I pause or cancel?</summary><p>Yes, any time. There's no contract and no hidden fees: you only pay for classes your child has taken.</p></details>
-<details class="reveal"><summary>How do I pay?</summary><p>Add a card in My Avelon. After each class, you (or your child) confirm it with one tap. Every Monday we charge the card for the previous week's confirmed classes and email you a receipt.</p></details>
+<details class="reveal"><summary>How do I pay?</summary><p>Add a card in My Avelon. After each class the tutor logs it and you get an email. There's nothing to confirm: if something isn't right, tell us within 48 hours. Every Monday we charge the card for logged classes and email you a receipt.</p></details>
 </div>
 </section>
 
@@ -457,7 +457,7 @@ Avelon Academy
 <label>Phone<input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="e.g. 780 555 0123"></label>
 <label>Grade<select name="grade" required><option value="" disabled selected>Choose grade</option><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></select></label>
 <label>Subject<select name="subject"><option>Math</option><option>Science</option><option>English</option><option>Bangla</option><option>Not sure yet</option></select></label>
-<p class="full" style="margin:0;font-size:13px;color:#a9b3c7;text-align:center;font-weight:400">By sending this request you agree to our <a href="terms.html" style="color:#fff">Terms</a> and <a href="privacy.html" style="color:#fff">Privacy Policy</a>.</p>
+<p class="full" style="margin:0;font-size:13px;color:#a9b3c7;text-align:center;font-weight:400">By sending this request you agree to our <a href="terms.html?from=book" style="color:#fff">Terms</a> and <a href="privacy.html?from=book" style="color:#fff">Privacy Policy</a>.</p>
 <p class="full" id="book-err" role="alert" style="display:none;margin:0;font-size:15px;color:#FCA5A5;text-align:center;font-weight:500"></p>
 <button class="btn btn-blue full" type="submit">Request my trial classes <span class="arr" aria-hidden="true">→</span></button>
 </form>
@@ -492,7 +492,12 @@ Avelon Academy
     el.scrollIntoView({behavior: 'smooth', block: 'start'});
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   });
-  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  // Arriving with #section (e.g. "Back to your trial request"): jump there, then tidy the address bar.
+  if (location.hash) {
+    var target = document.getElementById(location.hash.slice(1));
+    history.replaceState(null, '', location.pathname + location.search);
+    if (target) window.addEventListener('load', function(){ target.scrollIntoView({block: 'start', behavior: 'instant'}); });
+  }
 
   // header border on scroll
   var bar = document.getElementById('top-bar');

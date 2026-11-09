@@ -58,7 +58,7 @@ footer .bar{flex-wrap:wrap}
 </div></header>
 <main>
 <h1>Privacy Policy</h1>
-<p class="date">Effective November 6, 2026</p>
+<p class="date">Effective November 8, 2026</p>
 
 <div class="box"><p><b>In short:</b> we collect only what we need to teach your child and run our classes. We never sell your information. Some of our tutors and service providers are outside Canada, and this policy explains where and why. Questions? Email <a href="mailto:contact@avelonacademy.ca">contact@avelonacademy.ca</a>.</p></div>
 
@@ -69,21 +69,23 @@ footer .bar{flex-wrap:wrap}
 <ul>
 <li><b>Parent or guardian details:</b> name, email address, phone number, time zone and preferred contact method.</li>
 <li><b>Student details:</b> first name, grade, subjects, school curriculum or province, learning goals, and any learning needs you choose to tell us about.</li>
-<li><b>Class information:</b> class schedule, attendance, class length, short progress notes written by tutors, homework, and whether each class was confirmed or flagged.</li>
+<li><b>Class information:</b> class schedule, attendance, class length, short progress notes written by tutors, homework, plans for the next class, and whether each class was billed or reported as a problem.</li>
 <li><b>Portal account:</b> your email address and sign-in details for our family and tutor portal.</li>
 <li><b>Payment details:</b> what you paid and when. Your card is stored by our payment provider, Stripe; we only keep the card type and last 4 digits.</li>
-<li><b>Messages:</b> emails and messages you send us.</li>
+<li><b>Messages:</b> emails you send us, and messages sent in My Avelon between your family, your tutor and Avelon (who sent them, when, and what they say).</li>
 <li><b>Tutor applicants:</b> name, contact details, education, experience and references.</li>
 </ul>
 <p>Our website does not use advertising or tracking cookies. If you send a form on our website, we receive what you type into it.</p>
 
 <h2>3. Children's information</h2>
 <p>For students under 18, we collect information from the parent or guardian, with their consent, and we communicate about the student with the parent or guardian. Tutors see only what they need to teach: usually the student's first name, grade, subject and learning goals.</p>
+<p>If you give us your child's email, they get their own login to My Avelon to see class times, notes, files and messages. They never see prices or payments. Messages between a student and a tutor are never private from the parent: the parent or guardian and Avelon can read every conversation. Messages that look like they share a phone number, email address, another app or an outside link are flagged automatically so we can review them.</p>
 
 <h2>4. How we use it</h2>
 <ul>
 <li>To match your child with a tutor, schedule classes and run them.</li>
-<li>To send you class updates, progress notes, invoices and reminders.</li>
+<li>To send you class updates, progress notes, message alerts, invoices and reminders.</li>
+<li>To keep students safe, by reviewing flagged messages and dealing with any concern.</li>
 <li>To take payment and keep business and tax records.</li>
 <li>To answer your questions and improve our teaching.</li>
 <li>To review tutor applications.</li>
@@ -100,7 +102,7 @@ footer .bar{flex-wrap:wrap}
 <li><b>Video class platform</b> (currently Google Meet) to hold live classes.</li>
 <li><b>Email provider</b> (Zoho Mail, with data stored in Canada).</li>
 <li><b>Portal and database provider</b> (Supabase), which stores portal accounts, classes and billing records.</li>
-<li><b>Automatic email service</b> (Resend), which sends class confirmations and receipts.</li>
+<li><b>Automatic email service</b> (Resend), which sends class emails, weekend reports, message alerts, sign-in codes and receipts.</li>
 <li><b>Payment provider</b> (Stripe), which stores your card and processes weekly payments.</li>
 <li><b>Authorities,</b> only where the law requires it, or to protect a child's safety.</li>
 </ul>
@@ -117,7 +119,7 @@ footer .bar{flex-wrap:wrap}
 <p>We use password-protected accounts with two-step login, share information on a need-to-know basis, and ask tutors to keep student information confidential and to use it only for teaching. No system is perfectly secure. If a breach creates a real risk of significant harm, we will notify you and the relevant privacy authorities as the law requires.</p>
 
 <h2>9. How long we keep it</h2>
-<p>We keep student and class information while your child is learning with us, and for up to 2 years afterwards in case you return. We keep payment records for as long as tax law requires (usually 6 years). Then we securely delete it.</p>
+<p>We keep student, class and message information while your child is learning with us, and for up to 2 years afterwards in case you return. We keep payment records for as long as tax law requires (usually 6 years). Then we securely delete it.</p>
 
 <h2>10. Your choices and rights</h2>
 <ul>
@@ -135,5 +137,17 @@ footer .bar{flex-wrap:wrap}
 <p>We may update this policy. We will post the new version here with a new effective date, and tell current families about important changes by email.</p>
 </main>
 <footer><div class="bar"><span>© 2026 Avelon Academy · Canada</span><span><a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms</a> · <a href="mailto:contact@avelonacademy.ca">contact@avelonacademy.ca</a></span></div></footer>
+<script>
+// "Back" returns to exactly where you were on the homepage (and keeps anything typed in the trial form).
+// Opened from the trial form in a new tab or from an email: go to the trial form section instead.
+(function(){
+  var back = document.querySelector("a.back"); if (!back) return;
+  var fromBook = new URLSearchParams(location.search).get("from") === "book";
+  if (fromBook) { back.href = "index.html#book"; back.textContent = "\u2190 Back to your trial request"; }
+  back.addEventListener("click", function(e){
+    if (document.referrer && document.referrer.indexOf(location.origin) === 0 && history.length > 1) { e.preventDefault(); history.back(); }
+  });
+})();
+</script>
 </body>
 </html>
