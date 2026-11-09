@@ -929,7 +929,7 @@ async function adminView(me) {
         <button class="primary" type="submit">Add family</button></form>
       <h3 style="margin:34px 0 10px">Add a tutor</h3>
       <form id="addtutor" class="form">
-        <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Their email<input name="email" type="email" required></label><label>Phone <span class="note" style="font-weight:400">(optional)</span><input name="phone" type="tel"></label></div>
+        <div class="row"><label>Tutor's name<input name="full_name" required></label><label>Email<input name="email" type="email" required></label><label>Phone <span class="note" style="font-weight:400">(optional)</span><input name="phone" type="tel"></label></div>
         <label class="check"><input type="checkbox" name="send_email" checked> Email them a welcome with how to sign in</label>
         <button class="primary" type="submit">Add tutor</button></form></div>
     <div class="panel" id="tutors"><h2>Tutors (${tutors.length})</h2><p class="note">Add new tutors in <b>Add people</b>. Press ✎ to edit a tutor's name, phone or pay, or to remove their access. <b>Pay is only visible to you.</b> This month = classes logged since the 1st × their pay.</p><div class="scroll"><table class="table"><thead><tr><th>Tutor</th><th>Students</th><th>Pay</th><th>This month</th><th></th></tr></thead><tbody>${tutorRows || `<tr><td colspan="5" class="note">No tutors yet.</td></tr>`}</tbody></table></div></div>
