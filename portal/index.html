@@ -491,7 +491,9 @@ async function myView(me, own, asStudent) {
 
   const card = me.card_last4
     ? `<p>Card on file: <b>${esc((me.card_brand || "card").toUpperCase())} •••• ${esc(me.card_last4)}</b></p><button id="addcard" type="button">Change card</button>`
-    : `<p class="note">Add a card to keep classes going after the trial. We charge it every Monday for the classes logged the week before.</p><button id="addcard" class="primary" type="button">Add a card</button>`;
+    : `<p class="note">Add a card to keep classes going after the trial. We charge it every Monday for classes logged more than 48 hours earlier.</p>`;
+  const agreeBox = me.terms_accepted_at ? "" : `<label class="check" style="margin:12px 0 14px;align-items:flex-start"><input type="checkbox" id="agree" style="margin-top:4px"> <span>I'm the parent or guardian, and I agree to the <a href="../terms.html" target="_blank" rel="noopener">Terms</a> and <a href="../privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, including the weekly card charge described in section 6 of the Terms.</span></label>`;
+  const cardBtn = me.card_last4 ? "" : `${agreeBox}<button id="addcard" class="primary" type="button">Add a card</button>`;
 
   // Notes and homework: the student always sees their own. The account holder sees them too,
   // except for a Grade 6+ student who has their own login (their notes go to them).
@@ -557,7 +559,7 @@ async function myView(me, own, asStudent) {
     ${learners.map(studentPanel).join("")}
     <div class="panel" id="m-classes"><h2>Class log</h2><p class="note">${holder ? "Each class your tutor logs shows here. There's nothing to confirm: classes are charged at the booked length and billed after 48 hours. If something isn't right, press Report a problem within 48 hours and we won't charge that class until it's sorted." : "Every class your tutor has logged, with notes and homework."}</p>${classTable(mine, kids.length > 1)}</div>
     ${holder ? `
-    <div class="panel" id="m-payments"><h2>Prices</h2>${priceList()}<h2 style="margin-top:30px">Payment card</h2>${card}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
+    <div class="panel" id="m-payments"><h2>Prices</h2>${priceList()}<h2 style="margin-top:30px">Payment card</h2>${card}${cardBtn}<h2 style="margin-top:30px">Payments</h2><div class="scroll"><table class="table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${payRows || `<tr><td colspan="3" class="note">No payments yet.</td></tr>`}</tbody></table></div></div>
     <div class="panel" id="m-details"><h2>Your details</h2>
         <form id="me" class="form"><div class="row"><label>Name<input name="full_name" value="${esc(me.full_name)}"></label><label>Phone<input name="phone" value="${esc(me.phone)}"></label></div>
         <p class="note" style="margin:0">Email: ${esc(me.email)}</p><button class="small" type="submit">Save</button></form></div>
@@ -572,8 +574,10 @@ async function myView(me, own, asStudent) {
 
   if (holder) {
     document.getElementById("addcard").onclick = async (e) => {
+      const ag = document.getElementById("agree");
+      if (ag && !ag.checked) { show("Please tick the box to agree to the Terms before adding a card.", "bad"); return; }
       e.target.disabled = true;
-      try { const { url } = await call("create-card-session"); location.href = url; }
+      try { const { url } = await call("create-card-session", { agree: !!(ag && ag.checked) }); location.href = url; }
       catch (err) { show(err.message, "bad"); }
     };
     document.getElementById("me").onsubmit = async (e) => {

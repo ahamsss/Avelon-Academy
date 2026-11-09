@@ -14,6 +14,7 @@ const json = (body: unknown, status = 200) =>
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { httpClient: Stripe.createFetchHttpClient() });
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const SITE = Deno.env.get("SITE_URL") ?? "https://avelonacademy.ca";
+const TERMS_VERSION = "2026-11-08";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -24,6 +25,11 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await db.from("profiles").select("*").eq("id", user.id).single();
     if (!profile) return json({ error: "Profile not found." }, 404);
+
+    // The parent must accept the Terms (including the weekly card authorization) before saving a card.
+    const body = await req.json().catch(() => ({}));
+    if (body.agree !== true && !profile.terms_accepted_at) return json({ error: "Please tick the box to agree to the Terms first." }, 400);
+    if (body.agree === true) await db.from("profiles").update({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION }).eq("id", profile.id);
 
     let customer = profile.stripe_customer_id as string | null;
     if (!customer) {
@@ -45,7 +51,7 @@ Deno.serve(async (req) => {
       custom_text: {
         submit: {
           message:
-            "Avelon Academy will charge this card every Monday for the previous week's approved classes, as set out in our Terms.",
+            "You authorize Avelon Academy to charge this card every Monday for logged classes past their 48-hour report window, at the prices in My Avelon, until you remove the card or stop classes. Cancel any time by emailing contact@avelonacademy.ca.",
         },
       },
     });
