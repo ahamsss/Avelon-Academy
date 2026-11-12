@@ -317,8 +317,12 @@ function nextClass(slots, byId) {
 function bindShared(me) {
   app.querySelectorAll(".slotform").forEach((f) => f.onsubmit = async (e) => {
     e.preventDefault(); const d = Object.fromEntries(new FormData(f));
-    const { error } = await sb.from("class_slots").insert({ student_id: f.dataset.student, weekday: +d.weekday, start_time: d.start_time, minutes: +d.minutes, timezone: d.timezone, meet_link: d.meet_link.trim() || null });
-    show(error ? (error.message.includes("meet_link") ? "The Meet link must start with https://" : error.message) : "Weekly class added.", error ? "bad" : "ok");
+    const btn = f.querySelector("[type=submit]"); btn.disabled = true;
+    const { data: row, error } = await sb.from("class_slots").insert({ student_id: f.dataset.student, weekday: +d.weekday, start_time: d.start_time, minutes: +d.minutes, timezone: d.timezone, meet_link: d.meet_link.trim() || null }).select("id").single();
+    if (error) { btn.disabled = false; return show(error.message.includes("meet_link") ? "The Meet link must start with https://" : error.message, "bad"); }
+    let sent = 0;
+    try { sent = (await call("class-scheduled", { slot_id: row.id }))?.sent || 0; } catch (_) {}
+    show(`Weekly class added.${sent ? " The family has been emailed." : ""}`);
   });
   app.querySelectorAll("[data-delslot]").forEach((b) => b.onclick = async () => {
     if (!confirm("Remove this weekly class time?")) return;
