@@ -986,12 +986,17 @@ async function adminView(me) {
     if (new Set(subs).size !== subs.length) return show("Each subject can only be listed once for a student.", "bad");
     b.disabled = true;
     try {
+      const newTutor = [];
       for (const tr of trs) {
+        const tsel = g(tr, "tutor").value || null, was = (kids || []).find((k) => k.id === tr.dataset.kid)?.tutor_id || null;
+        if (tsel && tsel !== was) newTutor.push(tr.dataset.kid);
         const rate = g(tr, "rate").value === "" ? null : Math.round(Number(g(tr, "rate").value) * 100);
         await rpc("admin_edit_student", { p_student: tr.dataset.kid, p_first_name: first, p_grade: grade, p_subject: g(tr, "subject").value, p_student_email: email || null,
           p_tutor: g(tr, "tutor").value || null, p_rate_cents: rate, p_trial_status: g(tr, "trial").value, p_active: g(tr, "active").checked });
       }
-      editKid = null; show(`${first} saved.`);
+      let sent = 0;
+      if (newTutor.length) { try { sent = (await call("add-person", { kind: "assigned", student_ids: newTutor }))?.sent || 0; } catch (_) {} }
+      editKid = null; show(`${first} saved.${sent ? " The tutor has been emailed." : ""}`);
     } catch (err) { b.disabled = false; show(err.message, "bad"); }
   });
   app.querySelectorAll("[data-addsub]").forEach((b) => b.onclick = () => {

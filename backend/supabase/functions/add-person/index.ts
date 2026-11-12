@@ -80,6 +80,66 @@ function inviteEmail(first: string, kind: "tutor" | "family" | "student", email:
   return { html, text, subject: kind === "tutor" ? "Welcome to Avelon Academy: your tutor account" : kind === "student" ? "Your Avelon Academy student account is ready" : "Your Avelon Academy account is ready" };
 }
 
+// Email a tutor when students are assigned to them. rows: the student rows (one per subject) now with this tutor.
+function assignedEmail(tutorFirst: string, rows: { first_name: string; grade: string; subject: string }[]) {
+  const byKid = new Map<string, { grade: string; subjects: string[] }>();
+  for (const r of rows) {
+    const k = byKid.get(r.first_name) ?? { grade: r.grade, subjects: [] };
+    k.subjects.push(r.subject); byKid.set(r.first_name, k);
+  }
+  const kids = [...byKid.entries()];
+  const one = kids.length === 1;
+  const andJoin = (a: string[]) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+  const items = kids.map(([n, k]) => `<b>${esc(n)}</b> &middot; ${esc(k.grade)} &middot; ${esc(andJoin(k.subjects))}`);
+  const p = (t: string) => `<p style="font:16px/1.65 Arial,sans-serif;color:#0B0D12;margin:0 0 16px">${t}</p>`;
+  const box = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE;border-radius:14px;margin:4px 0 22px"><tr><td style="padding:18px 22px">
+      ${items.map((i) => `<div style="font:16px/1.7 Arial,sans-serif;color:#0B0D12">${i}</div>`).join("")}</td></tr></table>`;
+  const intro = one ? "You have a new student." : "You have new students.";
+  const next = "Log in to see the weekly class time and Google Meet link once they're set, and to message the family. Please log each class right after it ends.";
+  const loginUrl = `${SITE}/portal/`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"></head>
+<body style="margin:0;padding:0;background:#F1F1EE">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F1EE"><tr><td align="center" style="padding:32px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
+  <tr><td style="background:#0E1528;border-radius:20px 20px 0 0;padding:34px 36px 30px">
+    <a href="${SITE}" style="text-decoration:none"><img src="${SITE}/email-logo.png" width="205" height="35" alt="Avelon Academy" style="display:block;border:0;width:205px;height:35px;color:#F3EFE6;font:800 20px Arial,sans-serif"></a>
+    <div style="font:700 34px/1.1 Arial,sans-serif;color:#FFFFFF;margin-top:28px;letter-spacing:-1px">${one ? "New student" : "New students"}<span style="color:#E0B354">.</span></div>
+  </td></tr>
+  <tr><td style="background:#FFFFFF;padding:34px 36px 8px">
+    ${p(`Hi ${esc(tutorFirst || "there")},`)}${p(intro)}${box}${p(next)}
+    <p style="margin:8px 0 30px"><a href="${loginUrl}" style="background:#0E1528;color:#FFFFFF;padding:14px 26px;border-radius:999px;text-decoration:none;font:700 15px Arial,sans-serif;display:inline-block">Log in</a></p>
+    ${p("Questions? Just reply to this email.")}
+    <p style="font:16px/1.5 Arial,sans-serif;color:#0B0D12;margin:0 0 34px">Thanks,<br><b>Sadman</b><br><span style="color:#5A5F6E">Founder, Avelon Academy</span></p>
+  </td></tr>
+  <tr><td style="background:#0E1528;border-radius:0 0 20px 20px;padding:24px 36px">
+    <div style="font:14px/1.6 Arial,sans-serif;color:#A3ACBF"><a href="${SITE}" style="color:#F3EFE6;text-decoration:none">avelonacademy.ca</a> &nbsp;&middot;&nbsp; <a href="mailto:${ADMIN}" style="color:#F3EFE6;text-decoration:none">${ADMIN}</a></div>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+  const text = `Hi ${tutorFirst || "there"},\n\n${intro}\n\n${kids.map(([n, k]) => `- ${n} · ${k.grade} · ${andJoin(k.subjects)}`).join("\n")}\n\n${next}\n\nLog in: ${loginUrl}\n\nQuestions? Just reply to this email.\n\nThanks,\nSadman\nFounder, Avelon Academy`;
+  const subject = one ? `New student: ${kids[0][0]} (${andJoin(kids[0][1].subjects)})` : "New students assigned to you";
+  return { html, text, subject };
+}
+
+// Look up the given student rows and email each assigned tutor once. Skips rows with no tutor and the admin themself.
+async function notifyTutors(studentIds: string[], skip: string) {
+  const ids = [...new Set(studentIds.filter(Boolean))].slice(0, 20);
+  if (!ids.length) return 0;
+  const { data: rows } = await db.from("students").select("first_name, grade, subject, tutor_id, active").in("id", ids);
+  const byTutor = new Map<string, any[]>();
+  for (const r of rows ?? []) {
+    if (!r.tutor_id || r.tutor_id === skip || r.active === false) continue;
+    byTutor.set(r.tutor_id, [...(byTutor.get(r.tutor_id) ?? []), r]);
+  }
+  let sent = 0;
+  for (const [tid, list] of byTutor) {
+    const { data: t } = await db.from("profiles").select("email, full_name").eq("id", tid).single();
+    if (!t?.email) continue;
+    const m = assignedEmail((t.full_name || "").split(" ")[0], list);
+    await sendEmail(t.email, m.subject, m.html, m.text); sent++;
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -90,6 +150,12 @@ Deno.serve(async (req) => {
     if (me?.role !== "admin") return json({ error: "Admins only." }, 403);
 
     const b = await req.json();
+
+    // Tell tutors about students just assigned to them (called by the portal after a tutor is changed).
+    if (b.kind === "assigned") {
+      const ids = Array.isArray(b.student_ids) ? b.student_ids.map(String) : [];
+      return json({ ok: true, sent: await notifyTutors(ids, user.id) });
+    }
 
     // Resend a 24-hour sign-in code to someone already set up (family, tutor or student email).
     if (b.kind === "resend") {
@@ -148,8 +214,9 @@ Deno.serve(async (req) => {
     if (phone) await db.from("profiles").update({ phone }).eq("id", prof.id);
 
     if (kind === "family") {
-      const { error } = await db.from("students").insert({ parent_id: prof.id, ...st });
+      const { data: ins, error } = await db.from("students").insert({ parent_id: prof.id, ...st }).select("id").single();
       if (error) return json({ error: error.message }, 400);
+      if (st.tutor_id && ins?.id) await notifyTutors([ins.id], user.id);
       if (b.request_id) await db.from("trial_requests").update({ status: "booked" }).eq("id", b.request_id);
     }
 
